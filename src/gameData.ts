@@ -117,11 +117,12 @@ export interface Upgrade {
   icon: string;
   baseCost: number;
   costMultiplier: number;
-  effect: 'speed' | 'luck' | 'value' | 'autoScrap' | 'capacity';
+  effect: 'speed' | 'luck' | 'value' | 'autoScrap' | 'capacity' | 'clickPower';
   effectValue: number;
 }
 
 export const UPGRADES: Upgrade[] = [
+  { id: 'click_power', name: 'Neural Boost', description: '+1 click power', icon: '🧠', baseCost: 20, costMultiplier: 1.3, effect: 'clickPower', effectValue: 1 },
   { id: 'cpu', name: 'CPU Upgrade', description: '+1 loot/sec', icon: '🖥️', baseCost: 10, costMultiplier: 1.15, effect: 'speed', effectValue: 1 },
   { id: 'quantum_proc', name: 'Quantum Processor', description: '+5 loot/sec', icon: '⚛️', baseCost: 500, costMultiplier: 1.18, effect: 'speed', effectValue: 5 },
   { id: 'neural_net', name: 'Neural Network', description: '+25 loot/sec', icon: '🧬', baseCost: 5000, costMultiplier: 1.2, effect: 'speed', effectValue: 25 },

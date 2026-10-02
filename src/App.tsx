@@ -17,9 +17,10 @@ interface Item {
 }
 
 function App() {
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(15);
   const [totalLoot, setTotalLoot] = useState(0);
-  const [totalCredits, setTotalCredits] = useState(0);
+  const [totalCredits, setTotalCredits] = useState(15);
+  const [clickPower, setClickPower] = useState(1);
   const [inventory, setInventory] = useState<Item[]>([]);
   const [upgrades, setUpgrades] = useState<Record<string, number>>({});
   const [lastDrop, setLastDrop] = useState<Item | null>(null);
@@ -37,6 +38,7 @@ function App() {
   const inventoryCapacityRef = useRef(50);
   const lootPerSecondRef = useRef(0);
   const inventoryRef = useRef<Item[]>([]);
+  const clickPowerRef = useRef(1);
 
   // Calculate derived stats from upgrades
   useEffect(() => {
@@ -45,6 +47,7 @@ function App() {
     let value = 0;
     let autoScrap = 0;
     let capacity = 50;
+    let clickPower = 1;
 
     UPGRADES.forEach(upgrade => {
       const level = upgrades[upgrade.id] || 0;
@@ -54,6 +57,7 @@ function App() {
         case 'value': value += upgrade.effectValue * level; break;
         case 'autoScrap': autoScrap = Math.max(autoScrap, level > 0 ? upgrade.effectValue : 0); break;
         case 'capacity': capacity += upgrade.effectValue * level; break;
+        case 'clickPower': clickPower += upgrade.effectValue * level; break;
       }
     });
 
@@ -62,6 +66,8 @@ function App() {
     valueBonusRef.current = value;
     autoScrapLevelRef.current = autoScrap;
     inventoryCapacityRef.current = capacity;
+    clickPowerRef.current = clickPower;
+    setClickPower(clickPower);
     setTick(t => t + 1); // force re-render to show updated values
   }, [upgrades]);
 
@@ -188,6 +194,12 @@ function App() {
     }
   };
 
+  const manualLoot = () => {
+    const power = clickPowerRef.current;
+    setCredits(prev => prev + power);
+    setTotalCredits(prev => prev + power);
+  };
+
   // Derived values for display
   const lootPerSecond = lootPerSecondRef.current;
   const luckBonus = luckBonusRef.current;
@@ -198,7 +210,8 @@ function App() {
     if (!lastDrop) return (
       <div className="text-center text-gray-500 py-20">
         <div className="text-6xl mb-4">⏳</div>
-        <p className="text-lg">Купи улучшение CPU чтобы начать добычу...</p>
+        <p className="text-lg mb-2">Нажми ⚡ HACK чтобы заработать кредиты</p>
+        <p className="text-sm text-gray-600">Затем купи улучшение CPU для автоматической добычи</p>
       </div>
     );
 
@@ -517,6 +530,12 @@ function App() {
               <span className="text-xs text-gray-500 hidden sm:inline">v2.0.77 // IDLE PROTOCOL</span>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={manualLoot}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-sm transition-all active:scale-95 shadow-lg shadow-cyan-500/20"
+              >
+                ⚡ HACK (+{clickPower})
+              </button>
               <div className="text-right">
                 <div className="text-xs text-gray-500">КРЕДИТЫ</div>
                 <div className="text-lg font-bold text-yellow-400">💰 {formatNumber(credits)}</div>
