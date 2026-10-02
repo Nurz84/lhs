@@ -181,3 +181,60 @@ export function formatNumber(n: number): string {
 export function getSkillCost(skill: Skill, level: number): number {
   return Math.floor(skill.baseCost * Math.pow(skill.costMultiplier, level));
 }
+
+export function calculateItemPower(item: Item): number {
+  return item.stats.reduce((sum, stat) => sum + stat.value, 0);
+}
+
+export function compareItems(current: Item | null, newItem: Item): { better: boolean; difference: number; statChanges: { name: string; value: number }[] } {
+  if (!current) {
+    return {
+      better: true,
+      difference: calculateItemPower(newItem),
+      statChanges: newItem.stats.map(s => ({ name: s.name, value: s.value }))
+    };
+  }
+
+  const currentPower = calculateItemPower(current);
+  const newPower = calculateItemPower(newItem);
+  const difference = newPower - currentPower;
+
+  // Calculate stat-by-stat comparison
+  const currentStats: Record<string, number> = {};
+  current.stats.forEach(s => {
+    if (s.name === 'ALL') {
+      ['ATK', 'DEF', 'HP', 'SPD', 'CRIT', 'DODGE', 'LCK'].forEach(k => {
+        currentStats[k] = (currentStats[k] || 0) + s.value;
+      });
+    } else {
+      currentStats[s.name] = (currentStats[s.name] || 0) + s.value;
+    }
+  });
+
+  const newStats: Record<string, number> = {};
+  newItem.stats.forEach(s => {
+    if (s.name === 'ALL') {
+      ['ATK', 'DEF', 'HP', 'SPD', 'CRIT', 'DODGE', 'LCK'].forEach(k => {
+        newStats[k] = (newStats[k] || 0) + s.value;
+      });
+    } else {
+      newStats[s.name] = (newStats[s.name] || 0) + s.value;
+    }
+  });
+
+  const allStatNames = new Set([...Object.keys(currentStats), ...Object.keys(newStats)]);
+  const statChanges: { name: string; value: number }[] = [];
+  
+  allStatNames.forEach(statName => {
+    const change = (newStats[statName] || 0) - (currentStats[statName] || 0);
+    if (change !== 0) {
+      statChanges.push({ name: statName, value: change });
+    }
+  });
+
+  return {
+    better: difference > 0,
+    difference,
+    statChanges
+  };
+}

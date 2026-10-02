@@ -3,6 +3,7 @@ import {
   RARITIES, EQUIPMENT_SLOTS, MONSTERS, SKILLS,
   rollRarity, generateItemName, generateItemStats,
   getMonsterStats, getXpForLevel, formatNumber, getSkillCost,
+  calculateItemPower, compareItems,
   type Item, type Character
 } from './gameData';
 
@@ -194,8 +195,26 @@ function App() {
             value: Math.floor((5 + Math.random() * 10) * RARITIES[rarityIndex].multiplier * (1 + z / 5)),
           };
           setLastDrop(item);
-          if (inventoryRef.current.length < 100) {
-            setInventory(prev => [...prev, item]);
+          
+          // Auto-equip if better than current
+          const currentItem = equipmentRef.current[slot.name];
+          const comparison = compareItems(currentItem, item);
+          
+          if (comparison.better && comparison.difference > 0) {
+            // Auto-equip better item
+            setEquipment(prev => ({ ...prev, [slot.name]: item }));
+            if (currentItem) {
+              setInventory(prev => {
+                if (prev.length >= 100) return prev;
+                return [...prev, currentItem];
+              });
+            }
+            setBattleLog(prev => [...prev.slice(-9), `✨ Авто-экипировка: ${item.name} лучше текущего!`]);
+          } else {
+            // Add to inventory
+            if (inventoryRef.current.length < 100) {
+              setInventory(prev => [...prev, item]);
+            }
           }
         }
 
@@ -272,6 +291,67 @@ function App() {
       setCharacter(prev => ({ ...prev, gold: prev.gold - cost, skillPoints: prev.skillPoints - 1 }));
       setSkills(prev => ({ ...prev, [skillId]: level + 1 }));
     }
+  };
+
+  const autoEquip = () => {
+    // Group inventory by slot
+    const itemsBySlot: Record<string, Item[]> = {};
+    inventory.forEach(item => {
+      if (!itemsBySlot[item.slot]) itemsBySlot[item.slot] = [];
+      itemsBySlot[item.slot].push(item);
+    });
+
+    // For each slot, find the best item
+    const newEquipment: Record<string, Item | null> = { ...equipment };
+    const itemsToEquip: Item[] = [];
+    const itemsToRemove: Item[] = [];
+
+    Object.keys(itemsBySlot).forEach(slot => {
+      const items = itemsBySlot[slot];
+      const currentItem = equipment[slot];
+      
+      // Find best item in inventory for this slot
+      let bestItem = items[0];
+      let bestPower = calculateItemPower(items[0]);
+      
+      for (let i = 1; i < items.length; i++) {
+        const power = calculateItemPower(items[i]);
+        if (power > bestPower) {
+          bestPower = power;
+          bestItem = items[i];
+        }
+      }
+
+      // Compare with current equipped item
+      const comparison = compareItems(currentItem, bestItem);
+      
+      if (comparison.better) {
+        itemsToEquip.push(bestItem);
+        if (currentItem) {
+          itemsToRemove.push(currentItem);
+        }
+        newEquipment[slot] = bestItem;
+      }
+    });
+
+    // Apply changes
+    if (itemsToEquip.length > 0) {
+      setEquipment(newEquipment);
+      setInventory(prev => {
+        let newInv = prev.filter(item => !itemsToEquip.some(eq => eq.id === item.id));
+        // Add back old equipped items
+        itemsToRemove.forEach(oldItem => {
+          newInv.push(oldItem);
+        });
+        return newInv;
+      });
+      setBattleLog(prev => [...prev.slice(-9), `🔄 Авто-экипировка: заменено ${itemsToEquip.length} предметов`]);
+    }
+  };
+
+  const getItemComparison = (item: Item) => {
+    const currentItem = equipment[item.slot];
+    return compareItems(currentItem, item);
   };
 
   const totalStats = getTotalStats();
@@ -556,19 +636,27 @@ function App() {
 
         {activeTab === 'inventory' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <h3 className="text-lg font-bold text-gray-200">Инвентарь ({inventory.length}/100)</h3>
-              <button
-                onClick={() => {
-                  const toScrap = inventory.filter(i => i.rarityIndex <= 1);
-                  const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
-                  setInventory(prev => prev.filter(i => i.rarityIndex > 1));
-                  setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
-                }}
-                className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm text-gray-300"
-              >
-                🗑️ Разобрать Common/Uncommon
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={autoEquip}
+                  className="px-3 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-bold"
+                >
+                  ⚡ Авто-экипировка
+                </button>
+                <button
+                  onClick={() => {
+                    const toScrap = inventory.filter(i => i.rarityIndex <= 1);
+                    const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
+                    setInventory(prev => prev.filter(i => i.rarityIndex > 1));
+                    setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
+                  }}
+                  className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm text-gray-300"
+                >
+                  🗑️ Разобрать Common/Uncommon
+                </button>
+              </div>
             </div>
 
             {inventory.length === 0 ? (
@@ -579,40 +667,53 @@ function App() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto">
-                {inventory.map(item => (
-                  <div
-                    key={item.id}
-                    className="p-3 rounded-lg border cursor-pointer hover:scale-105 transition-all"
-                    style={{
-                      borderColor: RARITIES[item.rarityIndex].borderColor,
-                      backgroundColor: RARITIES[item.rarityIndex].bgColor,
-                    }}
-                    onClick={() => setSelectedItem(item)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{item.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs" style={{ color: RARITIES[item.rarityIndex].color }}>{RARITIES[item.rarityIndex].name}</div>
-                        <div className="text-sm font-medium text-gray-200 truncate">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.slot} • Ур.{item.level}</div>
+                {inventory.map(item => {
+                  const comparison = getItemComparison(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-lg border cursor-pointer hover:scale-105 transition-all relative"
+                      style={{
+                        borderColor: RARITIES[item.rarityIndex].borderColor,
+                        backgroundColor: RARITIES[item.rarityIndex].bgColor,
+                      }}
+                      onClick={() => setSelectedItem(item)}
+                    >
+                      {/* Comparison indicator */}
+                      {equipment[item.slot] && (
+                        <div className="absolute top-2 right-2">
+                          {comparison.better ? (
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-green-600/80 text-white">↑ +{comparison.difference}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-600/80 text-white">↓ {comparison.difference}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{item.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs" style={{ color: RARITIES[item.rarityIndex].color }}>{RARITIES[item.rarityIndex].name}</div>
+                          <div className="text-sm font-medium text-gray-200 truncate">{item.name}</div>
+                          <div className="text-xs text-gray-500">{item.slot} • Ур.{item.level}</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {item.stats.slice(0, 3).map((s, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-black/30" style={{ color: RARITIES[item.rarityIndex].color }}>
+                            +{s.value} {s.name}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {item.stats.slice(0, 3).map((s, i) => (
-                        <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-black/30" style={{ color: RARITIES[item.rarityIndex].color }}>
-                          +{s.value} {s.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {selectedItem && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setSelectedItem(null)}>
                 <div
-                  className="max-w-md w-full rounded-xl border-2 p-6"
+                  className="max-w-lg w-full rounded-xl border-2 p-6"
                   style={{
                     borderColor: RARITIES[selectedItem.rarityIndex].borderColor,
                     backgroundColor: '#111827',
@@ -628,6 +729,30 @@ function App() {
                       <div className="text-sm text-gray-400">{selectedItem.slot} • Уровень {selectedItem.level}</div>
                     </div>
                   </div>
+
+                  {/* Comparison with current */}
+                  {equipment[selectedItem.slot] && (
+                    <div className="mb-4 p-3 rounded-lg bg-black/30 border border-gray-700">
+                      <div className="text-xs text-gray-400 mb-2">Сравнение с текущим:</div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-300">Общая мощь:</span>
+                        <span className={`font-bold ${getItemComparison(selectedItem).better ? 'text-green-400' : 'text-red-400'}`}>
+                          {getItemComparison(selectedItem).better ? '↑' : '↓'} {Math.abs(getItemComparison(selectedItem).difference)}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {getItemComparison(selectedItem).statChanges.map((change, i) => (
+                          <div key={i} className="flex justify-between text-xs">
+                            <span className="text-gray-400">{change.name}:</span>
+                            <span className={change.value > 0 ? 'text-green-400' : 'text-red-400'}>
+                              {change.value > 0 ? '+' : ''}{change.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     {selectedItem.stats.map((s, i) => (
                       <div key={i} className="bg-black/30 rounded px-3 py-2 text-sm">
