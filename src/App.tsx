@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  RARITIES, EQUIPMENT_SLOTS, MONSTERS, SKILLS,
+  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS,
   rollRarity, generateItemName, generateItemStats,
   getMonsterStats, getXpForLevel, formatNumber, getSkillCost,
-  calculateItemPower, compareItems,
+  calculateItemPower, compareItems, generateSetItem, generateUniqueItem,
+  getActiveSetBonuses, getTotalSetBonus,
   type Item, type Character
 } from './gameData';
 
@@ -31,6 +32,7 @@ function App() {
   const [killCount, setKillCount] = useState(0);
   const [showDamage, setShowDamage] = useState<{ amount: number; isCrit: boolean } | null>(null);
   const [monstersKilledInZone, setMonstersKilledInZone] = useState(0);
+  const [isBoss, setIsBoss] = useState(false);
 
   // Refs for game loop
   const characterRef = useRef(character);
@@ -41,6 +43,7 @@ function App() {
   const monsterIdxRef = useRef(monsterIdx);
   const equipmentRef = useRef(equipment);
   const skillsRef = useRef(skills);
+  const isBossRef = useRef(isBoss);
 
   useEffect(() => { characterRef.current = character; }, [character]);
   useEffect(() => { monsterHpRef.current = monsterHp; }, [monsterHp]);
@@ -50,6 +53,7 @@ function App() {
   useEffect(() => { monsterIdxRef.current = monsterIdx; }, [monsterIdx]);
   useEffect(() => { equipmentRef.current = equipment; }, [equipment]);
   useEffect(() => { skillsRef.current = skills; }, [skills]);
+  useEffect(() => { isBossRef.current = isBoss; }, [isBoss]);
 
   const getEquipmentStats = useCallback(() => {
     const stats = { ATK: 0, DEF: 0, HP: 0, SPD: 0, CRIT: 0, DODGE: 0, LCK: 0 };
@@ -84,15 +88,16 @@ function App() {
   const getTotalStats = useCallback(() => {
     const eqStats = getEquipmentStats();
     const skillBonuses = getSkillBonuses();
+    const setBonuses = getTotalSetBonus(equipmentRef.current);
     const char = characterRef.current;
     return {
-      atk: char.atk + eqStats.ATK + skillBonuses.atk,
-      def: char.def + eqStats.DEF + skillBonuses.def,
-      maxHp: char.maxHp + eqStats.HP + skillBonuses.hp,
-      spd: char.spd + eqStats.SPD + skillBonuses.spd,
-      crit: char.crit + eqStats.CRIT + skillBonuses.crit,
-      dodge: char.dodge + eqStats.DODGE + skillBonuses.dodge,
-      lck: char.lck + eqStats.LCK + skillBonuses.lck,
+      atk: char.atk + eqStats.ATK + skillBonuses.atk + setBonuses.ATK + setBonuses.ALL,
+      def: char.def + eqStats.DEF + skillBonuses.def + setBonuses.DEF + setBonuses.ALL,
+      maxHp: char.maxHp + eqStats.HP + skillBonuses.hp + setBonuses.HP + setBonuses.ALL,
+      spd: char.spd + eqStats.SPD + skillBonuses.spd + setBonuses.SPD + setBonuses.ALL,
+      crit: char.crit + eqStats.CRIT + skillBonuses.crit + setBonuses.CRIT + setBonuses.ALL,
+      dodge: char.dodge + eqStats.DODGE + skillBonuses.dodge + setBonuses.DODGE + setBonuses.ALL,
+      lck: char.lck + eqStats.LCK + skillBonuses.lck + setBonuses.LCK + setBonuses.ALL,
       xpBonus: skillBonuses.xp,
       goldBonus: skillBonuses.gold,
       lootBonus: skillBonuses.loot,
@@ -102,11 +107,25 @@ function App() {
   const spawnMonster = useCallback(() => {
     const idx = monsterIdxRef.current;
     const z = zoneRef.current;
-    const monster = MONSTERS[idx];
-    const stats = getMonsterStats(monster, z);
-    setMonsterHp(stats.hp);
-    setMonsterMaxHp(stats.hp);
-    setBattleLog(prev => [...prev.slice(-9), `Появился ${monster.icon} ${monster.name} (Ур.${z})!`]);
+    const killed = monstersKilledRef.current;
+    
+    // Boss every 10 kills
+    if (killed > 0 && killed % 10 === 0) {
+      const bossIdx = Math.min(Math.floor(z / 3), BOSSES.length - 1);
+      const boss = BOSSES[bossIdx];
+      const stats = getMonsterStats(boss, z);
+      setMonsterHp(stats.hp * 2);
+      setMonsterMaxHp(stats.hp * 2);
+      setIsBoss(true);
+      setBattleLog(prev => [...prev.slice(-9), `⚠️ БОСС: ${boss.icon} ${boss.name} (Ур.${z})!`]);
+    } else {
+      const monster = MONSTERS[idx];
+      const stats = getMonsterStats(monster, z);
+      setMonsterHp(stats.hp);
+      setMonsterMaxHp(stats.hp);
+      setIsBoss(false);
+      setBattleLog(prev => [...prev.slice(-9), `Появился ${monster.icon} ${monster.name} (Ур.${z})!`]);
+    }
   }, []);
 
   // Initialize first monster
@@ -181,28 +200,48 @@ function App() {
 
         // Loot drop
         const lootChance = 30 + totalStats.lootBonus;
-        if (Math.random() * 100 < lootChance) {
-          const rarityIndex = rollRarity(totalStats.lck);
-          const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
-          const item: Item = {
-            id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
-            name: generateItemName(slot, rarityIndex),
-            slot: slot.name,
-            icon: slot.icon,
-            rarityIndex,
-            level: z,
-            stats: generateItemStats(rarityIndex, slot, z),
-            value: Math.floor((5 + Math.random() * 10) * RARITIES[rarityIndex].multiplier * (1 + z / 5)),
-          };
+        const isBossKill = isBossRef.current;
+        
+        if (Math.random() * 100 < lootChance || isBossKill) {
+          let item: Item;
+          
+          // Boss guaranteed unique drop
+          if (isBossKill && Math.random() < 0.5) {
+            item = generateUniqueItem(z);
+            setBattleLog(prev => [...prev.slice(-9), `🌟 УНИКАЛЬНЫЙ ПРЕДМЕТ: ${item.name}!`]);
+          }
+          // Set item drop chance
+          else if (Math.random() < 0.15) {
+            const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+            const setName = SETS[Math.floor(Math.random() * SETS.length)].name;
+            const rarityIndex = Math.max(3, rollRarity(totalStats.lck));
+            item = generateSetItem(rarityIndex, slot, z, setName);
+          }
+          // Normal drop
+          else {
+            const rarityIndex = rollRarity(totalStats.lck);
+            const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+            item = {
+              id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+              name: generateItemName(slot, rarityIndex),
+              slot: slot.name,
+              icon: slot.icon,
+              rarityIndex,
+              level: z,
+              stats: generateItemStats(rarityIndex, slot, z),
+              value: Math.floor((5 + Math.random() * 10) * RARITIES[rarityIndex].multiplier * (1 + z / 5)),
+            };
+          }
+          
           setLastDrop(item);
           
           // Auto-equip if better than current
-          const currentItem = equipmentRef.current[slot.name];
+          const currentItem = equipmentRef.current[item.slot];
           const comparison = compareItems(currentItem, item);
           
           if (comparison.better && comparison.difference > 0) {
             // Auto-equip better item
-            setEquipment(prev => ({ ...prev, [slot.name]: item }));
+            setEquipment(prev => ({ ...prev, [item.slot]: item }));
             if (currentItem) {
               setInventory(prev => {
                 if (prev.length >= 100) return prev;
@@ -216,11 +255,13 @@ function App() {
               setInventory(prev => [...prev, item]);
             }
           }
+          
+          setIsBoss(false);
         }
 
         // Next monster or zone
         const killed = monstersKilledRef.current + 1;
-        if (killed >= 5) {
+        if (killed >= 10) {
           setZone(prev => prev + 1);
           setMonstersKilledInZone(0);
           setMonsterIdx((mIdx + 1) % MONSTERS.length);
@@ -426,9 +467,12 @@ function App() {
         {activeTab === 'battle' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6">
+              <div className={`bg-gray-900/50 rounded-xl border-2 p-6 ${isBoss ? 'border-red-500' : 'border-gray-800'}`} style={isBoss ? { boxShadow: '0 0 30px rgba(239,68,68,0.3)' } : {}}>
                 <div className="text-center mb-4">
-                  <div className="text-sm text-gray-500 mb-2">Зона {zone} • Убито: {monstersKilledInZone}/5</div>
+                  <div className="text-sm text-gray-500 mb-2">
+                    Зона {zone} • Убито: {monstersKilledInZone}/10
+                    {isBoss && <span className="ml-2 text-red-400 font-bold">⚠️ БОСС!</span>}
+                  </div>
                   <div className="text-6xl mb-2 relative inline-block">
                     {monster.icon}
                     {showDamage && (
@@ -440,7 +484,7 @@ function App() {
                       </div>
                     )}
                   </div>
-                  <div className="text-xl font-bold text-gray-200">{monster.name}</div>
+                  <div className={`text-xl font-bold ${isBoss ? 'text-red-400' : 'text-gray-200'}`}>{monster.name}</div>
                   <div className="text-sm text-gray-500">Уровень {zone}</div>
                 </div>
                 <div className="mb-4">
@@ -523,6 +567,28 @@ function App() {
                   <div className="flex justify-between"><span className="text-gray-500">💨 DODGE</span><span className="text-cyan-400 font-bold">{totalStats.dodge}%</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">🍀 LCK</span><span className="text-purple-400 font-bold">{totalStats.lck}</span></div>
                 </div>
+                
+                {/* Set Bonuses */}
+                {getActiveSetBonuses(equipment).length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <h4 className="text-xs font-bold text-gray-400 mb-2">Сетовые бонусы</h4>
+                    {getActiveSetBonuses(equipment).map((set, i) => {
+                      const setInfo = SETS.find(s => s.name === set.setName)!;
+                      return (
+                        <div key={i} className="mb-2">
+                          <div className="text-xs font-bold" style={{ color: setInfo.color }}>
+                            {set.setName} ({set.count}/4)
+                          </div>
+                          {set.activeBonuses.map((bonus, j) => (
+                            <div key={j} className="text-xs text-green-400 ml-2">
+                              ({bonus.count}) +{bonus.value} {bonus.effect}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
@@ -638,25 +704,39 @@ function App() {
           <div className="space-y-4">
             <div className="flex justify-between items-center flex-wrap gap-2">
               <h3 className="text-lg font-bold text-gray-200">Инвентарь ({inventory.length}/100)</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={autoEquip}
-                  className="px-3 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-bold"
-                >
-                  ⚡ Авто-экипировка
-                </button>
-                <button
-                  onClick={() => {
-                    const toScrap = inventory.filter(i => i.rarityIndex <= 1);
-                    const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
-                    setInventory(prev => prev.filter(i => i.rarityIndex > 1));
-                    setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
-                  }}
-                  className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600 text-sm text-gray-300"
-                >
-                  🗑️ Разобрать Common/Uncommon
-                </button>
-              </div>
+              <button
+                onClick={autoEquip}
+                className="px-3 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-bold"
+              >
+                ⚡ Авто-экипировка
+              </button>
+            </div>
+
+            {/* Scrap buttons for all rarities */}
+            <div className="flex flex-wrap gap-2">
+              {RARITIES.slice(0, 7).map((rarity, idx) => {
+                const count = inventory.filter(i => i.rarityIndex === idx && !i.isUnique).length;
+                if (count === 0) return null;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const toScrap = inventory.filter(i => i.rarityIndex === idx && !i.isUnique);
+                      const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
+                      setInventory(prev => prev.filter(i => i.rarityIndex !== idx || i.isUnique));
+                      setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-105"
+                    style={{
+                      borderColor: rarity.borderColor,
+                      backgroundColor: rarity.bgColor,
+                      color: rarity.color,
+                    }}
+                  >
+                    🗑️ {rarity.name} ({count})
+                  </button>
+                );
+              })}
             </div>
 
             {inventory.length === 0 ? (
@@ -669,16 +749,32 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto">
                 {inventory.map(item => {
                   const comparison = getItemComparison(item);
+                  const setInfo = item.setName ? SETS.find(s => s.name === item.setName) : null;
                   return (
                     <div
                       key={item.id}
                       className="p-3 rounded-lg border cursor-pointer hover:scale-105 transition-all relative"
                       style={{
-                        borderColor: RARITIES[item.rarityIndex].borderColor,
-                        backgroundColor: RARITIES[item.rarityIndex].bgColor,
+                        borderColor: item.isUnique ? '#fbbf24' : RARITIES[item.rarityIndex].borderColor,
+                        backgroundColor: item.isUnique ? 'rgba(251,191,36,0.1)' : RARITIES[item.rarityIndex].bgColor,
+                        boxShadow: item.isUnique ? '0 0 15px rgba(251,191,36,0.4)' : undefined,
                       }}
                       onClick={() => setSelectedItem(item)}
                     >
+                      {/* Unique indicator */}
+                      {item.isUnique && (
+                        <div className="absolute top-2 left-2">
+                          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-yellow-600/80 text-white">★ УНИКАЛЬНЫЙ</span>
+                        </div>
+                      )}
+                      {/* Set indicator */}
+                      {setInfo && (
+                        <div className="absolute top-2 left-2">
+                          <span className="px-1.5 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: setInfo.color + '80', color: 'white' }}>
+                            {setInfo.name.split(' ')[0]}
+                          </span>
+                        </div>
+                      )}
                       {/* Comparison indicator */}
                       {equipment[item.slot] && (
                         <div className="absolute top-2 right-2">
@@ -689,21 +785,26 @@ function App() {
                           )}
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${item.isUnique || setInfo ? 'mt-6' : ''}`}>
                         <span className="text-2xl">{item.icon}</span>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs" style={{ color: RARITIES[item.rarityIndex].color }}>{RARITIES[item.rarityIndex].name}</div>
+                          <div className="text-xs" style={{ color: item.isUnique ? '#fbbf24' : RARITIES[item.rarityIndex].color }}>
+                            {item.isUnique ? 'Уникальный' : RARITIES[item.rarityIndex].name}
+                          </div>
                           <div className="text-sm font-medium text-gray-200 truncate">{item.name}</div>
                           <div className="text-xs text-gray-500">{item.slot} • Ур.{item.level}</div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {item.stats.slice(0, 3).map((s, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-black/30" style={{ color: RARITIES[item.rarityIndex].color }}>
+                          <span key={i} className="px-1.5 py-0.5 rounded text-xs bg-black/30" style={{ color: item.isUnique ? '#fbbf24' : RARITIES[item.rarityIndex].color }}>
                             +{s.value} {s.name}
                           </span>
                         ))}
                       </div>
+                      {item.specialEffect && (
+                        <div className="text-xs text-yellow-400 mt-1 italic">✨ {item.specialEffect}</div>
+                      )}
                     </div>
                   );
                 })}
@@ -724,9 +825,18 @@ function App() {
                   <div className="flex items-center gap-4 mb-4">
                     <span className="text-5xl">{selectedItem.icon}</span>
                     <div>
-                      <div className="text-xs uppercase" style={{ color: RARITIES[selectedItem.rarityIndex].color }}>{RARITIES[selectedItem.rarityIndex].name}</div>
-                      <div className="text-xl font-bold" style={{ color: RARITIES[selectedItem.rarityIndex].color }}>{selectedItem.name}</div>
+                      <div className="text-xs uppercase" style={{ color: selectedItem.isUnique ? '#fbbf24' : RARITIES[selectedItem.rarityIndex].color }}>
+                        {selectedItem.isUnique ? '★ Уникальный' : RARITIES[selectedItem.rarityIndex].name}
+                      </div>
+                      <div className="text-xl font-bold" style={{ color: selectedItem.isUnique ? '#fbbf24' : RARITIES[selectedItem.rarityIndex].color }}>
+                        {selectedItem.name}
+                      </div>
                       <div className="text-sm text-gray-400">{selectedItem.slot} • Уровень {selectedItem.level}</div>
+                      {selectedItem.setName && (
+                        <div className="text-xs mt-1" style={{ color: SETS.find(s => s.name === selectedItem.setName)?.color }}>
+                          Сет: {selectedItem.setName}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -757,17 +867,27 @@ function App() {
                     {selectedItem.stats.map((s, i) => (
                       <div key={i} className="bg-black/30 rounded px-3 py-2 text-sm">
                         <span className="text-gray-400">{s.name}:</span>{' '}
-                        <span style={{ color: RARITIES[selectedItem.rarityIndex].color }}>+{s.value}</span>
+                        <span style={{ color: selectedItem.isUnique ? '#fbbf24' : RARITIES[selectedItem.rarityIndex].color }}>+{s.value}</span>
                       </div>
                     ))}
                   </div>
+                  
+                  {selectedItem.specialEffect && (
+                    <div className="mb-4 p-3 rounded-lg bg-yellow-900/20 border border-yellow-700/50">
+                      <div className="text-xs text-yellow-400 font-bold mb-1">✨ Особый эффект:</div>
+                      <div className="text-sm text-yellow-300">{selectedItem.specialEffect}</div>
+                    </div>
+                  )}
+                  
                   <div className="flex gap-2">
                     <button onClick={() => equipItem(selectedItem)} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-sm">
                       ⚔️ Экипировать
                     </button>
-                    <button onClick={() => scrapItem(selectedItem)} className="flex-1 py-2 rounded-lg bg-red-900/50 hover:bg-red-800/50 border border-red-700 text-red-300 text-sm">
-                      🗑️ Разобрать (💰{formatNumber(selectedItem.value)})
-                    </button>
+                    {!selectedItem.isUnique && (
+                      <button onClick={() => scrapItem(selectedItem)} className="flex-1 py-2 rounded-lg bg-red-900/50 hover:bg-red-800/50 border border-red-700 text-red-300 text-sm">
+                        🗑️ Разобрать (💰{formatNumber(selectedItem.value)})
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -62,6 +62,58 @@ export const MONSTERS: Monster[] = [
   { name: 'Бог Хаоса', icon: '👁️', baseHP: 1000, baseATK: 170, xpReward: 550, goldReward: 380 },
 ];
 
+export interface Boss extends Monster {
+  specialAbility: string;
+  guaranteedLoot: boolean;
+}
+
+export const BOSSES: Boss[] = [
+  { name: 'Король Слизней', icon: '👑', baseHP: 150, baseATK: 15, xpReward: 200, goldReward: 150, specialAbility: 'Делится на слаймов', guaranteedLoot: true },
+  { name: 'Гоблин-Шаман', icon: '🧙', baseHP: 300, baseATK: 30, xpReward: 400, goldReward: 300, specialAbility: 'Призывает духов', guaranteedLoot: true },
+  { name: 'Некромант', icon: '☠️', baseHP: 500, baseATK: 50, xpReward: 700, goldReward: 500, specialAbility: 'Воскрешает мёртвых', guaranteedLoot: true },
+  { name: 'Орк-Вождь', icon: '🦍', baseHP: 800, baseATK: 80, xpReward: 1200, goldReward: 800, specialAbility: 'Берсерк', guaranteedLoot: true },
+  { name: 'Каменный Голем', icon: '🗿', baseHP: 1200, baseATK: 120, xpReward: 2000, goldReward: 1300, specialAbility: 'Каменная кожа', guaranteedLoot: true },
+  { name: 'Повелитель Демонов', icon: '👿', baseHP: 1800, baseATK: 180, xpReward: 3500, goldReward: 2200, specialAbility: 'Огненное дыхание', guaranteedLoot: true },
+  { name: 'Древний Дракон', icon: '🐲', baseHP: 2800, baseATK: 280, xpReward: 6000, goldReward: 3800, specialAbility: 'Ледяной шторм', guaranteedLoot: true },
+  { name: 'Архимаг Тьмы', icon: '🧙‍♂️', baseHP: 4500, baseATK: 450, xpReward: 10000, goldReward: 6500, specialAbility: 'Тёмная магия', guaranteedLoot: true },
+  { name: 'Падший Ангел', icon: '😇', baseHP: 7000, baseATK: 700, xpReward: 17000, goldReward: 11000, specialAbility: 'Божественный гнев', guaranteedLoot: true },
+  { name: 'Владыка Бездны', icon: '🌑', baseHP: 11000, baseATK: 1100, xpReward: 30000, goldReward: 20000, specialAbility: 'Поглощение души', guaranteedLoot: true },
+];
+
+export interface SetBonus {
+  name: string;
+  color: string;
+  pieces: number;
+  bonuses: { count: number; effect: string; value: number }[];
+}
+
+export const SETS: SetBonus[] = [
+  { name: 'Доспехи Берсерка', color: '#ef4444', pieces: 4, bonuses: [{ count: 2, effect: 'ATK', value: 15 }, { count: 4, effect: 'CRIT', value: 10 }] },
+  { name: 'Мантия Архимага', color: '#a855f7', pieces: 4, bonuses: [{ count: 2, effect: 'LCK', value: 20 }, { count: 4, effect: 'ALL', value: 10 }] },
+  { name: 'Латы Паладина', color: '#fbbf24', pieces: 4, bonuses: [{ count: 2, effect: 'DEF', value: 25 }, { count: 4, effect: 'HP', value: 100 }] },
+  { name: 'Одеяние Тени', color: '#6b7280', pieces: 4, bonuses: [{ count: 2, effect: 'DODGE', value: 15 }, { count: 4, effect: 'SPD', value: 20 }] },
+  { name: 'Регалии Дракона', color: '#f59e0b', pieces: 4, bonuses: [{ count: 2, effect: 'ATK', value: 30 }, { count: 4, effect: 'HP', value: 200 }] },
+];
+
+export interface UniqueItem {
+  name: string;
+  icon: string;
+  slot: string;
+  description: string;
+  fixedStats: { name: string; value: number }[];
+  specialEffect?: string;
+}
+
+export const UNIQUE_ITEMS: UniqueItem[] = [
+  { name: 'Клинок Вечной Ночи', icon: '🗡️', slot: 'Оружие', description: 'Легендарный меч, выкованный в бездне', fixedStats: [{ name: 'ATK', value: 500 }, { name: 'CRIT', value: 25 }], specialEffect: 'Шанс нанести тройной урон' },
+  { name: 'Щит Небесного Стража', icon: '🛡️', slot: 'Броня', description: 'Божественный щит, защищающий от зла', fixedStats: [{ name: 'DEF', value: 400 }, { name: 'HP', value: 500 }], specialEffect: 'Блокирует 20% урона' },
+  { name: 'Шлем Повелителя Бурь', icon: '⛑️', slot: 'Шлем', description: 'Венец древнего короля стихий', fixedStats: [{ name: 'DEF', value: 200 }, { name: 'SPD', value: 30 }], specialEffect: '+15% к скорости атаки' },
+  { name: 'Кольцо Бесконечности', icon: '💎', slot: 'Кольцо', description: 'Артефакт из другого измерения', fixedStats: [{ name: 'ALL', value: 100 }], specialEffect: 'Удваивает шанс критического удара' },
+  { name: 'Амулет Душ', icon: '🔮', slot: 'Амулет', description: 'Содержит тысячи пленённых душ', fixedStats: [{ name: 'LCK', value: 50 }, { name: 'CRIT', value: 20 }], specialEffect: '+30% к шансу выпадения редких предметов' },
+  { name: 'Сапоги Ветра', icon: '👟', slot: 'Сапоги', description: 'Обувь бога скорости', fixedStats: [{ name: 'SPD', value: 100 }, { name: 'DODGE', value: 25 }], specialEffect: 'Невозможно оглушить' },
+  { name: 'Перчатки Титана', icon: '🧤', slot: 'Перчатки', description: 'Рукавицы древнего гиганта', fixedStats: [{ name: 'ATK', value: 300 }, { name: 'DEF', value: 150 }], specialEffect: 'Каждый 5-й удар наносит двойной урон' },
+];
+
 export interface Skill {
   id: string;
   name: string;
@@ -96,6 +148,9 @@ export interface Item {
   level: number;
   stats: { name: string; value: number }[];
   value: number;
+  setName?: string;
+  isUnique?: boolean;
+  specialEffect?: string;
 }
 
 export interface Character {
@@ -184,6 +239,77 @@ export function getSkillCost(skill: Skill, level: number): number {
 
 export function calculateItemPower(item: Item): number {
   return item.stats.reduce((sum, stat) => sum + stat.value, 0);
+}
+
+export function generateSetItem(rarityIndex: number, slot: EquipmentSlot, level: number, setName: string): Item {
+  const setInfo = SETS.find(s => s.name === setName)!;
+  const stats = generateItemStats(rarityIndex, slot, level);
+  
+  return {
+    id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+    name: `${slot.name} ${setInfo.name.split(' ')[0]}`,
+    slot: slot.name,
+    icon: slot.icon,
+    rarityIndex: Math.max(rarityIndex, 3), // Sets are at least Epic
+    level,
+    stats,
+    value: Math.floor((20 + Math.random() * 30) * RARITIES[rarityIndex].multiplier * (1 + level / 5)),
+    setName: setInfo.name,
+  };
+}
+
+export function generateUniqueItem(level: number): Item {
+  const uniqueTemplate = UNIQUE_ITEMS[Math.floor(Math.random() * UNIQUE_ITEMS.length)];
+  const scaling = 1 + level / 10;
+  
+  const stats = uniqueTemplate.fixedStats.map(s => ({
+    name: s.name,
+    value: Math.floor(s.value * scaling)
+  }));
+
+  return {
+    id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+    name: uniqueTemplate.name,
+    slot: uniqueTemplate.slot,
+    icon: uniqueTemplate.icon,
+    rarityIndex: 8, // Celestial
+    level,
+    stats,
+    value: Math.floor(1000 * scaling),
+    isUnique: true,
+    specialEffect: uniqueTemplate.specialEffect,
+  };
+}
+
+export function getActiveSetBonuses(equipment: Record<string, Item | null>): { setName: string; count: number; activeBonuses: { count: number; effect: string; value: number }[] }[] {
+  const setCounts: Record<string, number> = {};
+  
+  Object.values(equipment).forEach(item => {
+    if (item && item.setName) {
+      setCounts[item.setName] = (setCounts[item.setName] || 0) + 1;
+    }
+  });
+
+  return Object.entries(setCounts).map(([setName, count]) => {
+    const setInfo = SETS.find(s => s.name === setName)!;
+    const activeBonuses = setInfo.bonuses.filter(b => count >= b.count);
+    return { setName, count, activeBonuses };
+  }).filter(s => s.count >= 2);
+}
+
+export function getTotalSetBonus(equipment: Record<string, Item | null>): { ATK: number; DEF: number; HP: number; SPD: number; CRIT: number; DODGE: number; LCK: number; ALL: number } {
+  const bonuses = { ATK: 0, DEF: 0, HP: 0, SPD: 0, CRIT: 0, DODGE: 0, LCK: 0, ALL: 0 };
+  const activeSets = getActiveSetBonuses(equipment);
+  
+  activeSets.forEach(set => {
+    set.activeBonuses.forEach(bonus => {
+      if (bonus.effect in bonuses) {
+        bonuses[bonus.effect as keyof typeof bonuses] += bonus.value;
+      }
+    });
+  });
+
+  return bonuses;
 }
 
 export function compareItems(current: Item | null, newItem: Item): { better: boolean; difference: number; statChanges: { name: string; value: number }[] } {
