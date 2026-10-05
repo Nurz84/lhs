@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 * {
@@ -7,52 +8,298 @@
 body {
   margin: 0;
   padding: 0;
-  background: #030712;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  background: #1a1208;
+  font-family: 'Crimson Text', Georgia, serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color: #e8dcc4;
+}
+
+h1, h2, h3, h4, h5, h6, .font-title {
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.05em;
+}
+
+/* Parchment-like backgrounds */
+.bg-parchment {
+  background: linear-gradient(135deg, #2a1f0e 0%, #1a1208 50%, #231809 100%);
+}
+
+.bg-parchment-light {
+  background: linear-gradient(135deg, #3d2d14 0%, #2a1f0e 100%);
+}
+
+/* Wood texture borders */
+.border-wood {
+  border-color: #5c3d1e;
+}
+
+.border-wood-light {
+  border-color: #8b6234;
+}
+
+.border-gold {
+  border-color: #b8860b;
+}
+
+/* Gold text effect */
+.text-gold {
+  color: #d4a843;
+}
+
+.text-gold-bright {
+  color: #f0c75e;
 }
 
 /* Custom scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 3px;
+  background: rgba(26, 18, 8, 0.8);
+  border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(6, 182, 212, 0.3);
-  border-radius: 3px;
+  background: linear-gradient(180deg, #8b6234, #5c3d1e);
+  border-radius: 4px;
+  border: 1px solid #3d2d14;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.5);
+  background: linear-gradient(180deg, #b8860b, #8b6234);
 }
+
+/* Ornate button style */
+.btn-medieval {
+  background: linear-gradient(180deg, #5c3d1e 0%, #3d2d14 100%);
+  border: 2px solid #8b6234;
+  color: #e8dcc4;
+  font-family: 'Cinzel', serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.btn-medieval:hover {
+  background: linear-gradient(180deg, #8b6234 0%, #5c3d1e 100%);
+  border-color: #b8860b;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 2px 8px rgba(184,134,11,0.3);
+}
+
+.btn-medieval:active {
+  transform: scale(0.97);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.btn-medieval-primary {
+  background: linear-gradient(180deg, #8b6234 0%, #5c3d1e 100%);
+  border: 2px solid #b8860b;
+  color: #f0c75e;
+}
+
+.btn-medieval-primary:hover {
+  background: linear-gradient(180deg, #b8860b 0%, #8b6234 100%);
+  border-color: #d4a843;
+  color: #fff;
+}
+
+.btn-medieval-danger {
+  background: linear-gradient(180deg, #5c1a1a 0%, #3d0e0e 100%);
+  border: 2px solid #8b2020;
+  color: #e8a0a0;
+}
+
+.btn-medieval-danger:hover {
+  background: linear-gradient(180deg, #8b2020 0%, #5c1a1a 100%);
+  border-color: #b83030;
+}
+
+/* Rarity colors - fantasy theme */
+.rarity-common { color: #a89880; }
+.rarity-uncommon { color: #6b8e4e; }
+.rarity-rare { color: #4a7fb5; }
+.rarity-epic { color: #9b59b6; }
+.rarity-legendary { color: #d4a843; }
+.rarity-mythic { color: #c0392b; }
+.rarity-transcendent { color: #e67e22; }
+.rarity-ascended { color: #1abc9c; }
+.rarity-celestial { color: #f1c40f; }
+.rarity-void { color: #ecf0f1; }
 
 /* Animations */
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
 }
 
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
+@keyframes glow-gold {
+  0%, 100% { box-shadow: 0 0 10px rgba(212, 168, 67, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(212, 168, 67, 0.5); }
+}
+
+.animate-flicker {
+  animation: flicker 3s ease-in-out infinite;
+}
+
+.animate-glow-gold {
+  animation: glow-gold 2s ease-in-out infinite;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(6, 182, 212, 0.3);
-  color: white;
+  background: rgba(184, 134, 11, 0.4);
+  color: #f0c75e;
 }
 
-/* Button hover effects */
+/* Button base */
 button {
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 button:active {
   transform: scale(0.97);
+}
+
+/* Ornate divider */
+.ornate-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #8b6234, #b8860b, #8b6234, transparent);
+}
+
+/* Panel style */
+.panel-medieval {
+  background: linear-gradient(135deg, #2a1f0e 0%, #1a1208 100%);
+  border: 2px solid #5c3d1e;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.5);
+}
+
+.text-gold {
+  color: #d4a843;
+}
+
+.text-gold-bright {
+  color: #f0c75e;
+}
+
+.text-forest {
+  color: #6b8e4e;
+}
+
+.text-blood {
+  color: #c0392b;
+}
+
+.text-amber {
+  color: #e67e22;
+}
+
+.bg-wood {
+  background-color: #3d2d14;
+}
+
+/* Ornate corner decorations */
+.ornate-corner::before,
+.ornate-corner::after {
+  content: '⚜';
+  position: absolute;
+  color: #b8860b;
+  font-size: 1.5rem;
+  opacity: 0.3;
+}
+
+.ornate-corner::before {
+  top: 4px;
+  left: 8px;
+}
+
+.ornate-corner::after {
+  bottom: 4px;
+  right: 8px;
+}
+
+/* Medieval scroll effect */
+.scroll-effect {
+  background: linear-gradient(180deg, 
+    #3d2d14 0%, 
+    #2a1f0e 5%, 
+    #2a1f0e 95%, 
+    #3d2d14 100%
+  );
+  border-left: 3px solid #5c3d1e;
+  border-right: 3px solid #5c3d1e;
+}
+
+/* Item glow effects */
+.item-glow-legendary {
+  box-shadow: 0 0 15px rgba(212, 168, 67, 0.4), inset 0 0 10px rgba(212, 168, 67, 0.1);
+}
+
+.item-glow-epic {
+  box-shadow: 0 0 12px rgba(155, 89, 182, 0.4), inset 0 0 8px rgba(155, 89, 182, 0.1);
+}
+
+.item-glow-rare {
+  box-shadow: 0 0 10px rgba(74, 127, 181, 0.3), inset 0 0 6px rgba(74, 127, 181, 0.1);
+}
+
+.panel-medieval-light {
+  background: linear-gradient(135deg, #3d2d14 0%, #2a1f0e 100%);
+  border: 1px solid #8b6234;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+}
+
+/* HP bars */
+.hp-bar-player {
+  background: linear-gradient(180deg, #4a7a3a 0%, #2d5a1e 100%);
+  border: 1px solid #6b8e4e;
+}
+
+.hp-bar-enemy {
+  background: linear-gradient(180deg, #8b2020 0%, #5c1a1a 100%);
+  border: 1px solid #b83030;
+}
+
+.xp-bar {
+  background: linear-gradient(180deg, #4a7fb5 0%, #2c5f8a 100%);
+  border: 1px solid #6ba3d6;
+}
+
+/* Tab styles */
+.tab-medieval {
+  font-family: 'Cinzel', serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Custom utility classes */
+.text-secondary {
+  color: #8b7355;
+}
+
+.text-parchment {
+  color: #a89880;
+}
+
+.text-parchment-light {
+  color: #e8dcc4;
+}
+
+.bg-wood-dark {
+  background-color: #1a1208;
+}
+
+.border-wood {
+  border-color: #5c3d1e;
+}
+
+.panel-medieval {
+  background: linear-gradient(135deg, #2a1f0e 0%, #1a1208 100%);
+  border: 2px solid #5c3d1e;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.5);
 }

@@ -588,29 +588,29 @@ function App() {
   const monster = MONSTERS[monsterIdx];
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white font-mono">
-      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3">
+    <div className="min-h-screen text-gold" style={{ backgroundColor: '#1a1208', fontFamily: "'Crimson Text', Georgia, serif" }}>
+      <header className="border-b-2 border-wood sticky top-0 z-50 shadow-lg" style={{ backgroundColor: '#2a1f0e' }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-red-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold tracking-wider" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>
               ⚔️ Loot Hunter Stories
             </h1>
             <div className="flex items-center gap-4 text-sm flex-wrap">
               <div className="text-center">
-                <div className="text-xs text-gray-500">Уровень</div>
-                <div className="text-lg font-bold text-cyan-400">{character.level}</div>
+                <div className="text-xs" style={{ color: '#8b7355' }}>Уровень</div>
+                <div className="text-lg font-bold" style={{ color: '#d4a843' }}>{character.level}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500">Зона</div>
-                <div className="text-lg font-bold text-purple-400">{zone}</div>
+                <div className="text-xs" style={{ color: '#8b7355' }}>Зона</div>
+                <div className="text-lg font-bold" style={{ color: '#b8860b' }}>{zone}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500">💰 Золото</div>
-                <div className="text-lg font-bold text-yellow-400">{formatNumber(character.gold)}</div>
+                <div className="text-xs" style={{ color: '#8b7355' }}>💰 Золото</div>
+                <div className="text-lg font-bold" style={{ color: '#f0c75e' }}>{formatNumber(character.gold)}</div>
               </div>
               <div className="text-center">
-                <div className="text-xs text-gray-500">🎯 Очки навыков</div>
-                <div className="text-lg font-bold text-green-400">{character.skillPoints}</div>
+                <div className="text-xs" style={{ color: '#8b7355' }}>🎯 Очки навыков</div>
+                <div className="text-lg font-bold" style={{ color: '#6b8e4e' }}>{character.skillPoints}</div>
               </div>
               <div className="text-center px-3 py-1 rounded-lg border" style={{ borderColor: currentSeason.color, backgroundColor: currentSeason.color + '20' }}>
                 <div className="text-xs" style={{ color: currentSeason.color }}>Сезон</div>
@@ -618,28 +618,31 @@ function App() {
               </div>
               {luckBoost > 0 && (
                 <div className="text-center px-3 py-1 rounded-lg border border-purple-500 bg-purple-500/20">
-                  <div className="text-xs text-purple-400">Удача</div>
+                  <div className="text-xs text-gold-bright">Удача</div>
                   <div className="text-sm font-bold text-purple-300">🍀 +{luckBoost}%</div>
                 </div>
               )}
             </div>
           </div>
           <div className="mt-2">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
               <span>XP: {formatNumber(character.xp)} / {formatNumber(character.xpToNext)}</span>
               <span>{((character.xp / character.xpToNext) * 100).toFixed(1)}%</span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-3 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all"
-                style={{ width: `${(character.xp / character.xpToNext) * 100}%` }}
+                className="h-full transition-all"
+                style={{ 
+                  width: `${(character.xp / character.xpToNext) * 100}%`,
+                  background: 'linear-gradient(180deg, #4a7fb5 0%, #2c5f8a 100%)'
+                }}
               />
             </div>
           </div>
         </div>
       </header>
 
-      <nav className="border-b border-gray-800 bg-gray-900/30">
+      <nav className="border-b-2" style={{ backgroundColor: '#231809', borderColor: '#5c3d1e' }}>
         <div className="max-w-7xl mx-auto px-4 flex gap-1 flex-wrap">
           {([
             { id: 'battle' as Tab, label: '⚔️ Бой' },
@@ -654,8 +657,12 @@ function App() {
               onClick={() => setActiveTab(tab.id)}
               className="px-4 py-3 text-sm font-medium border-b-2 transition-all"
               style={{
-                borderBottomColor: activeTab === tab.id ? '#22d3ee' : 'transparent',
-                color: activeTab === tab.id ? '#22d3ee' : '#6b7280',
+                borderBottomColor: activeTab === tab.id ? '#b8860b' : 'transparent',
+                color: activeTab === tab.id ? '#f0c75e' : '#8b7355',
+                fontFamily: "'Cinzel', serif",
+                letterSpacing: '0.05em',
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
               }}
             >
               {tab.label}
@@ -668,57 +675,67 @@ function App() {
         {activeTab === 'battle' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
-              <div className={`bg-gray-900/50 rounded-xl border-2 p-6 ${isBoss ? 'border-red-500' : 'border-gray-800'}`} style={isBoss ? { boxShadow: '0 0 30px rgba(239,68,68,0.3)' } : {}}>
+              <div className={`rounded-xl border-2 p-6 ${isBoss ? '' : ''}`} style={{ 
+                backgroundColor: '#2a1f0e', 
+                borderColor: isBoss ? '#8b2020' : '#5c3d1e',
+                boxShadow: isBoss ? '0 0 30px rgba(139,32,32,0.4), inset 0 0 20px rgba(0,0,0,0.5)' : 'inset 0 0 20px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.5)'
+              }}>
                 <div className="text-center mb-4">
-                  <div className="text-sm text-gray-500 mb-2">
+                  <div className="text-sm mb-2" style={{ color: '#8b7355' }}>
                     Зона {zone} • Убито: {monstersKilledInZone}/10
-                    {isBoss && <span className="ml-2 text-red-400 font-bold">⚠️ БОСС!</span>}
+                    {isBoss && <span className="ml-2 font-bold" style={{ color: '#c0392b' }}>⚠️ БОСС!</span>}
                   </div>
                   <div className="text-6xl mb-2 relative inline-block">
                     {monster.icon}
                     {showDamage && (
                       <div
                         className="absolute -top-4 -right-8 text-2xl font-bold animate-bounce"
-                        style={{ color: showDamage.isCrit ? '#fbbf24' : '#ef4444' }}
+                        style={{ color: showDamage.isCrit ? '#f0c75e' : '#c0392b' }}
                       >
                         -{formatNumber(showDamage.amount)}{showDamage.isCrit ? '!' : ''}
                       </div>
                     )}
                   </div>
-                  <div className={`text-xl font-bold ${isBoss ? 'text-red-400' : 'text-gray-200'}`}>{monster.name}</div>
-                  <div className="text-sm text-gray-500">Уровень {zone}</div>
+                  <div className="text-xl font-bold" style={{ color: isBoss ? '#c0392b' : '#e8dcc4' }}>{monster.name}</div>
+                  <div className="text-sm" style={{ color: '#8b7355' }}>Уровень {zone}</div>
                 </div>
                 <div className="mb-4">
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
                     <span>HP: {formatNumber(monsterHp)} / {formatNumber(monsterMaxHp)}</span>
                     <span>{((monsterHp / monsterMaxHp) * 100).toFixed(1)}%</span>
                   </div>
-                  <div className="h-4 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-4 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
                     <div
-                      className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all"
-                      style={{ width: `${(monsterHp / monsterMaxHp) * 100}%` }}
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${(monsterHp / monsterMaxHp) * 100}%`,
+                        background: 'linear-gradient(180deg, #8b2020 0%, #5c1a1a 100%)'
+                      }}
                     />
                   </div>
                 </div>
                 <div>
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
                     <span>Ваше HP: {formatNumber(character.hp)} / {formatNumber(totalStats.maxHp)}</span>
                     <span>{((character.hp / totalStats.maxHp) * 100).toFixed(1)}%</span>
                   </div>
-                  <div className="h-4 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-4 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
                     <div
-                      className="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all"
-                      style={{ width: `${(character.hp / totalStats.maxHp) * 100}%` }}
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${(character.hp / totalStats.maxHp) * 100}%`,
+                        background: 'linear-gradient(180deg, #4a7a3a 0%, #2d5a1e 100%)'
+                      }}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
-                <h3 className="text-sm font-bold text-gray-400 mb-2">Журнал боя</h3>
-                <div className="space-y-1 max-h-40 overflow-y-auto text-sm">
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-2" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>📜 Журнал боя</h3>
+                <div className="space-y-1 max-h-40 overflow-y-auto text-sm custom-scrollbar">
                   {battleLog.slice().reverse().map((log, i) => (
-                    <div key={i} className="text-gray-500">{log}</div>
+                    <div key={i} style={{ color: '#8b7355' }}>{log}</div>
                   ))}
                 </div>
               </div>
@@ -741,9 +758,9 @@ function App() {
                       <div className="font-bold" style={{ color: RARITIES[lastDrop.rarityIndex].color }}>
                         {lastDrop.name}
                       </div>
-                      <div className="text-xs text-gray-400">{lastDrop.slot} • Ур.{lastDrop.level}</div>
+                      <div className="text-xs text-parchment">{lastDrop.slot} • Ур.{lastDrop.level}</div>
                     </div>
-                    <div className="text-yellow-400 text-sm">💰{formatNumber(lastDrop.value)}</div>
+                    <div className="text-gold-bright text-sm">💰{formatNumber(lastDrop.value)}</div>
                   </div>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {lastDrop.stats.map((s, i) => (
@@ -757,21 +774,21 @@ function App() {
             </div>
 
             <div className="space-y-4">
-              <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
-                <h3 className="text-sm font-bold text-gray-400 mb-3">Характеристики</h3>
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-3" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>⚔️ Характеристики</h3>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">⚔️ ATK</span><span className="text-red-400 font-bold">{totalStats.atk}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">🛡️ DEF</span><span className="text-blue-400 font-bold">{totalStats.def}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">❤️ HP</span><span className="text-green-400 font-bold">{totalStats.maxHp}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">⚡ SPD</span><span className="text-yellow-400 font-bold">{totalStats.spd}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">🎯 CRIT</span><span className="text-orange-400 font-bold">{totalStats.crit}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">💨 DODGE</span><span className="text-cyan-400 font-bold">{totalStats.dodge}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">🍀 LCK</span><span className="text-purple-400 font-bold">{totalStats.lck}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>⚔️ ATK</span><span className="font-bold" style={{ color: '#c0392b' }}>{totalStats.atk}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🛡️ DEF</span><span className="font-bold" style={{ color: '#4a7fb5' }}>{totalStats.def}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>❤️ HP</span><span className="font-bold" style={{ color: '#6b8e4e' }}>{totalStats.maxHp}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>⚡ SPD</span><span className="font-bold" style={{ color: '#d4a843' }}>{totalStats.spd}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🎯 CRIT</span><span className="font-bold" style={{ color: '#e67e22' }}>{totalStats.crit}%</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>💨 DODGE</span><span className="font-bold" style={{ color: '#1abc9c' }}>{totalStats.dodge}%</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🍀 LCK</span><span className="font-bold" style={{ color: '#9b59b6' }}>{totalStats.lck}</span></div>
                   {totalStats.regen > 0 && (
-                    <div className="flex justify-between"><span className="text-gray-500">❤️ Регенерация</span><span className="text-pink-400 font-bold">+{totalStats.regen}%</span></div>
+                    <div className="flex justify-between"><span className="text-secondary">❤️ Регенерация</span><span className="text-pink-400 font-bold">+{totalStats.regen}%</span></div>
                   )}
                   {totalStats.thorns > 0 && (
-                    <div className="flex justify-between"><span className="text-gray-500">🌵 Шипы</span><span className="text-green-400 font-bold">+{totalStats.thorns}%</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">🌵 Шипы</span><span className="text-forest font-bold">+{totalStats.thorns}%</span></div>
                   )}
                 </div>
                 
@@ -798,24 +815,25 @@ function App() {
                 )}
               </div>
 
-              <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
-                <h3 className="text-sm font-bold text-gray-400 mb-3">Экипировка</h3>
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-3" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>🛡️ Экипировка</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {EQUIPMENT_SLOTS.map(slot => {
                     const item = equipment[slot.name];
                     return (
                       <div
                         key={slot.name}
-                        className="p-2 rounded-lg border text-center cursor-pointer hover:bg-gray-800/50"
+                        className="p-2 rounded border text-center cursor-pointer transition-all"
                         style={{
-                          borderColor: item ? RARITIES[item.rarityIndex].borderColor : '#374151',
-                          backgroundColor: item ? RARITIES[item.rarityIndex].bgColor : 'transparent',
+                          borderColor: item ? RARITIES[item.rarityIndex].borderColor : '#5c3d1e',
+                          backgroundColor: item ? RARITIES[item.rarityIndex].bgColor : '#1a1208',
+                          boxShadow: item ? `0 0 10px ${RARITIES[item.rarityIndex].glowColor}` : 'none',
                         }}
                         onClick={() => item && unequipItem(slot.name)}
                         title={item ? `${item.name}\nКлик чтобы снять` : slot.name}
                       >
                         <div className="text-2xl">{item ? item.icon : slot.icon}</div>
-                        <div className="text-xs text-gray-500">{slot.name}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>{slot.name}</div>
                       </div>
                     );
                   })}
@@ -827,11 +845,11 @@ function App() {
 
         {activeTab === 'character' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6">
-              <h3 className="text-lg font-bold text-gray-200 mb-4">Персонаж</h3>
+            <div className="panel-medieval rounded-xl border border-wood p-6">
+              <h3 className="text-lg font-bold text-parchment-light mb-4">Персонаж</h3>
               <div className="text-center mb-6">
                 <div className="text-6xl mb-2">🧙</div>
-                <div className="text-2xl font-bold text-cyan-400">Уровень {character.level}</div>
+                <div className="text-2xl font-bold text-gold">Уровень {character.level}</div>
               </div>
               <div className="space-y-3">
                 <div>
@@ -839,16 +857,16 @@ function App() {
                     <span className="text-gray-500">Опыт</span>
                     <span className="text-gray-400">{formatNumber(character.xp)} / {formatNumber(character.xpToNext)}</span>
                   </div>
-                  <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-3 bg-wood-dark rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${(character.xp / character.xpToNext) * 100}%` }} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">⚔️ ATK</div><div className="text-xl font-bold text-red-400">{totalStats.atk}</div></div>
+                  <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">⚔️ ATK</div><div className="text-xl font-bold text-blood">{totalStats.atk}</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">🛡️ DEF</div><div className="text-xl font-bold text-blue-400">{totalStats.def}</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">❤️ HP</div><div className="text-xl font-bold text-green-400">{totalStats.maxHp}</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">⚡ SPD</div><div className="text-xl font-bold text-yellow-400">{totalStats.spd}</div></div>
-                  <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">🎯 CRIT</div><div className="text-xl font-bold text-orange-400">{totalStats.crit}%</div></div>
+                  <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">🎯 CRIT</div><div className="text-xl font-bold text-amber">{totalStats.crit}%</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">💨 DODGE</div><div className="text-xl font-bold text-cyan-400">{totalStats.dodge}%</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">🍀 LCK</div><div className="text-xl font-bold text-purple-400">{totalStats.lck}</div></div>
                   <div className="bg-gray-800/50 rounded-lg p-3"><div className="text-gray-500">💰 Золото</div><div className="text-xl font-bold text-yellow-400">{formatNumber(character.gold)}</div></div>
@@ -894,7 +912,7 @@ function App() {
                                 <div className="text-xs text-gray-500">Ур.{item.level}</div>
                               </>
                             ) : (
-                              <div className="text-xs text-gray-600">Пусто</div>
+                              <div className="text-xs text-secondary">Пусто</div>
                             )}
                           </div>
                         </div>
@@ -1052,7 +1070,7 @@ function App() {
                     <div className="mb-4 p-3 rounded-lg bg-black/30 border border-gray-700">
                       <div className="text-xs text-gray-400 mb-2">Сравнение с текущим:</div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-300">Общая мощь:</span>
+                        <span className="text-sm text-parchment-light">Общая мощь:</span>
                         <span className={`font-bold ${getItemComparison(selectedItem).better ? 'text-green-400' : 'text-red-400'}`}>
                           {getItemComparison(selectedItem).better ? '↑' : '↓'} {Math.abs(getItemComparison(selectedItem).difference)}
                         </span>
@@ -1087,11 +1105,11 @@ function App() {
                   )}
                   
                   <div className="flex gap-2">
-                    <button onClick={() => equipItem(selectedItem)} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white font-bold text-sm">
+                    <button onClick={() => equipItem(selectedItem)} className="flex-1 py-2 rounded-lg btn-medieval-primary text-white font-bold text-sm">
                       ⚔️ Экипировать
                     </button>
                     {!selectedItem.isUnique && (
-                      <button onClick={() => scrapItem(selectedItem)} className="flex-1 py-2 rounded-lg bg-red-900/50 hover:bg-red-800/50 border border-red-700 text-red-300 text-sm">
+                      <button onClick={() => scrapItem(selectedItem)} className="flex-1 py-2 rounded-lg btn-medieval-danger text-sm">
                         🗑️ Разобрать (💰{formatNumber(selectedItem.value)})
                       </button>
                     )}
