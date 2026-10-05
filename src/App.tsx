@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS,
+  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS, TRADERS, SEASONS,
   rollRarity, generateItemName, generateItemStats,
   getMonsterStats, getXpForLevel, formatNumber, getSkillCost,
   calculateItemPower, compareItems, generateSetItem, generateUniqueItem,
@@ -8,7 +8,7 @@ import {
   type Item, type Character
 } from './gameData';
 
-type Tab = 'battle' | 'character' | 'inventory' | 'skills';
+type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'trade';
 
 function App() {
   const [character, setCharacter] = useState<Character>({
@@ -33,6 +33,11 @@ function App() {
   const [showDamage, setShowDamage] = useState<{ amount: number; isCrit: boolean } | null>(null);
   const [monstersKilledInZone, setMonstersKilledInZone] = useState(0);
   const [isBoss, setIsBoss] = useState(false);
+  const [traderCooldowns, setTraderCooldowns] = useState<Record<string, number>>({});
+  const [currentSeason, setCurrentSeason] = useState(SEASONS[0]);
+  const [seasonStartTime, setSeasonStartTime] = useState(Date.now());
+  const [luckBoost, setLuckBoost] = useState(0);
+  const [luckBoostExpiry, setLuckBoostExpiry] = useState(0);
 
   // Refs for game loop
   const characterRef = useRef(character);
@@ -90,19 +95,34 @@ function App() {
     const skillBonuses = getSkillBonuses();
     const setBonuses = getTotalSetBonus(equipmentRef.current);
     const char = characterRef.current;
-    return {
-      atk: char.atk + eqStats.ATK + skillBonuses.atk + setBonuses.ATK + setBonuses.ALL,
-      def: char.def + eqStats.DEF + skillBonuses.def + setBonuses.DEF + setBonuses.ALL,
-      maxHp: char.maxHp + eqStats.HP + skillBonuses.hp + setBonuses.HP + setBonuses.ALL,
-      spd: char.spd + eqStats.SPD + skillBonuses.spd + setBonuses.SPD + setBonuses.ALL,
-      crit: char.crit + eqStats.CRIT + skillBonuses.crit + setBonuses.CRIT + setBonuses.ALL,
-      dodge: char.dodge + eqStats.DODGE + skillBonuses.dodge + setBonuses.DODGE + setBonuses.ALL,
-      lck: char.lck + eqStats.LCK + skillBonuses.lck + setBonuses.LCK + setBonuses.ALL,
-      xpBonus: skillBonuses.xp,
-      goldBonus: skillBonuses.gold,
-      lootBonus: skillBonuses.loot,
+    
+    // Apply season modifiers
+    const seasonMultiplier = (stat: string) => {
+      const mod = currentSeason.modifiers.find(m => m.stat === stat || m.stat === 'ALL');
+      return mod ? mod.value / 100 : 0;
     };
-  }, [getEquipmentStats, getSkillBonuses]);
+    
+    const baseAtk = char.atk + eqStats.ATK + skillBonuses.atk + setBonuses.ATK + setBonuses.ALL;
+    const baseDef = char.def + eqStats.DEF + skillBonuses.def + setBonuses.DEF + setBonuses.ALL;
+    const baseHp = char.maxHp + eqStats.HP + skillBonuses.hp + setBonuses.HP + setBonuses.ALL;
+    const baseSpd = char.spd + eqStats.SPD + skillBonuses.spd + setBonuses.SPD + setBonuses.ALL;
+    const baseCrit = char.crit + eqStats.CRIT + skillBonuses.crit + setBonuses.CRIT + setBonuses.ALL;
+    const baseDodge = char.dodge + eqStats.DODGE + skillBonuses.dodge + setBonuses.DODGE + setBonuses.ALL;
+    const baseLck = char.lck + eqStats.LCK + skillBonuses.lck + setBonuses.LCK + setBonuses.ALL + luckBoost;
+    
+    return {
+      atk: Math.floor(baseAtk * (1 + seasonMultiplier('ATK'))),
+      def: Math.floor(baseDef * (1 + seasonMultiplier('DEF'))),
+      maxHp: Math.floor(baseHp * (1 + seasonMultiplier('HP'))),
+      spd: Math.floor(baseSpd * (1 + seasonMultiplier('SPD'))),
+      crit: Math.floor(baseCrit * (1 + seasonMultiplier('CRIT'))),
+      dodge: Math.floor(baseDodge * (1 + seasonMultiplier('DODGE'))),
+      lck: Math.floor(baseLck * (1 + seasonMultiplier('LCK'))),
+      xpBonus: skillBonuses.xp,
+      goldBonus: skillBonuses.gold + (currentSeason.modifiers.find(m => m.stat === 'GOLD')?.value || 0),
+      lootBonus: skillBonuses.loot + (currentSeason.modifiers.find(m => m.stat === 'LOOT')?.value || 0),
+    };
+  }, [getEquipmentStats, getSkillBonuses, currentSeason, luckBoost]);
 
   const spawnMonster = useCallback(() => {
     const idx = monsterIdxRef.current;
@@ -395,6 +415,133 @@ function App() {
     return compareItems(currentItem, item);
   };
 
+  // Trader functions
+  const useTrader = (traderId: string) => {
+    const trader = TRADERS.find(t => t.id === traderId)!;
+    const cooldown = traderCooldowns[traderId] || 0;
+    
+    if (cooldown > 0) return;
+    if (character.gold < trader.cost) return;
+
+    setCharacter(prev => ({ ...prev, gold: prev.gold - trader.cost }));
+    setTraderCooldowns(prev => ({ ...prev, [traderId]: trader.cooldown }));
+
+    switch (traderId) {
+      case 'scavenger':
+        const toScrap = inventory.filter(i => i.rarityIndex <= 2 && !i.isUnique);
+        const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
+        setInventory(prev => prev.filter(i => i.rarityIndex > 2 || i.isUnique));
+        setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
+        setBattleLog(prev => [...prev.slice(-9), `🧹 Сборщик разобрал ${toScrap.length} предметов за 💰${formatNumber(totalValue)}`]);
+        break;
+        
+      case 'enchanter':
+        if (inventory.length > 0) {
+          const randomIdx = Math.floor(Math.random() * inventory.length);
+          const item = inventory[randomIdx];
+          const upgradedItem = {
+            ...item,
+            level: item.level + 1,
+            stats: item.stats.map(s => ({ ...s, value: Math.floor(s.value * 1.2) })),
+            value: Math.floor(item.value * 1.5),
+          };
+          setInventory(prev => {
+            const newInv = [...prev];
+            newInv[randomIdx] = upgradedItem;
+            return newInv;
+          });
+          setBattleLog(prev => [...prev.slice(-9), `🔮 Зачарователь улучшил ${item.name} до уровня ${upgradedItem.level}!`]);
+        }
+        break;
+        
+      case 'mystic':
+        const lowItems = inventory.filter(i => !i.isUnique).slice(0, 3);
+        if (lowItems.length >= 3) {
+          const avgRarity = Math.min(9, Math.floor(lowItems.reduce((sum, i) => sum + i.rarityIndex, 0) / 3) + 1);
+          const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+          const newItem: Item = {
+            id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+            name: generateItemName(slot, avgRarity),
+            slot: slot.name,
+            icon: slot.icon,
+            rarityIndex: avgRarity,
+            level: zone,
+            stats: generateItemStats(avgRarity, slot, zone),
+            value: Math.floor((5 + Math.random() * 10) * RARITIES[avgRarity].multiplier * (1 + zone / 5)),
+          };
+          setInventory(prev => {
+            const newInv = prev.filter(i => !lowItems.includes(i));
+            return [...newInv, newItem];
+          });
+          setBattleLog(prev => [...prev.slice(-9), `🎲 Мистик трансмутировал 3 предмета в ${newItem.name}!`]);
+        }
+        break;
+        
+      case 'merchant':
+        const rarity = Math.min(9, 3 + Math.floor(Math.random() * 3));
+        const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+        const boughtItem: Item = {
+          id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+          name: generateItemName(slot, rarity),
+          slot: slot.name,
+          icon: slot.icon,
+          rarityIndex: rarity,
+          level: zone,
+          stats: generateItemStats(rarity, slot, zone),
+          value: Math.floor((5 + Math.random() * 10) * RARITIES[rarity].multiplier * (1 + zone / 5)),
+        };
+        if (inventory.length < 100) {
+          setInventory(prev => [...prev, boughtItem]);
+          setBattleLog(prev => [...prev.slice(-9), `💰 Торговец продал ${boughtItem.name}!`]);
+        }
+        break;
+        
+      case 'alchemist':
+        setCharacter(prev => ({ ...prev, xp: prev.xp + 100 }));
+        setBattleLog(prev => [...prev.slice(-9), `⚗️ Алхимик конвертировал золото в +100 XP!`]);
+        break;
+        
+      case 'fortune_teller':
+        setLuckBoost(50);
+        setLuckBoostExpiry(Date.now() + 3600000); // 1 hour
+        setBattleLog(prev => [...prev.slice(-9), `🔮 Гадалка усилила удачу на +50% на 1 час!`]);
+        break;
+    }
+  };
+
+  // Update cooldowns and check luck boost expiry
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTraderCooldowns(prev => {
+        const newCooldowns = { ...prev };
+        Object.keys(newCooldowns).forEach(key => {
+          if (newCooldowns[key] > 0) {
+            newCooldowns[key] = Math.max(0, newCooldowns[key] - 1);
+          }
+        });
+        return newCooldowns;
+      });
+
+      // Check luck boost expiry
+      if (luckBoostExpiry > 0 && Date.now() > luckBoostExpiry) {
+        setLuckBoost(0);
+        setLuckBoostExpiry(0);
+      }
+
+      // Check season rotation (every 7 days)
+      const seasonDuration = currentSeason.duration * 24 * 60 * 60 * 1000;
+      if (Date.now() - seasonStartTime > seasonDuration) {
+        const currentIdx = SEASONS.findIndex(s => s.id === currentSeason.id);
+        const nextIdx = (currentIdx + 1) % SEASONS.length;
+        setCurrentSeason(SEASONS[nextIdx]);
+        setSeasonStartTime(Date.now());
+        setBattleLog(prev => [...prev.slice(-9), `🌟 Новый сезон: ${SEASONS[nextIdx].name}!`]);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentSeason, seasonStartTime, luckBoostExpiry]);
+
   const totalStats = getTotalStats();
   const monster = MONSTERS[monsterIdx];
 
@@ -406,7 +553,7 @@ function App() {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-red-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent">
               ⚔️ NEON SLAYER
             </h1>
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-sm flex-wrap">
               <div className="text-center">
                 <div className="text-xs text-gray-500">Уровень</div>
                 <div className="text-lg font-bold text-cyan-400">{character.level}</div>
@@ -423,6 +570,16 @@ function App() {
                 <div className="text-xs text-gray-500">🎯 Очки навыков</div>
                 <div className="text-lg font-bold text-green-400">{character.skillPoints}</div>
               </div>
+              <div className="text-center px-3 py-1 rounded-lg border" style={{ borderColor: currentSeason.color, backgroundColor: currentSeason.color + '20' }}>
+                <div className="text-xs" style={{ color: currentSeason.color }}>Сезон</div>
+                <div className="text-sm font-bold" style={{ color: currentSeason.color }}>{currentSeason.icon} {currentSeason.name}</div>
+              </div>
+              {luckBoost > 0 && (
+                <div className="text-center px-3 py-1 rounded-lg border border-purple-500 bg-purple-500/20">
+                  <div className="text-xs text-purple-400">Удача</div>
+                  <div className="text-sm font-bold text-purple-300">🍀 +{luckBoost}%</div>
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-2">
@@ -447,6 +604,7 @@ function App() {
             { id: 'character' as Tab, label: '👤 Персонаж' },
             { id: 'inventory' as Tab, label: '🎒 Инвентарь' },
             { id: 'skills' as Tab, label: '📖 Навыки' },
+            { id: 'trade' as Tab, label: '🏪 Торговля' },
           ]).map(tab => (
             <button
               key={tab.id}
@@ -935,6 +1093,108 @@ function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'trade' && (
+          <div className="space-y-6">
+            {/* Current Season */}
+            <div className="rounded-xl border-2 p-6" style={{ borderColor: currentSeason.color, backgroundColor: currentSeason.color + '10', boxShadow: `0 0 30px ${currentSeason.color}40` }}>
+              <div className="flex items-center gap-4 mb-4">
+                <span className="text-5xl">{currentSeason.icon}</span>
+                <div className="flex-1">
+                  <div className="text-xs uppercase tracking-wider" style={{ color: currentSeason.color }}>Текущий сезон</div>
+                  <div className="text-2xl font-bold" style={{ color: currentSeason.color }}>{currentSeason.name}</div>
+                  <div className="text-sm text-gray-400">{currentSeason.description}</div>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {currentSeason.modifiers.map((mod, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="text-green-400">✓</span>
+                    <span className="text-gray-300">{mod.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Traders */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-200 mb-4">NPC-Торговцы</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {TRADERS.map(trader => {
+                  const cooldown = traderCooldowns[trader.id] || 0;
+                  const canAfford = character.gold >= trader.cost;
+                  const isAvailable = cooldown === 0 && canAfford;
+                  
+                  return (
+                    <div
+                      key={trader.id}
+                      className={`p-4 rounded-xl border transition-all ${isAvailable ? 'border-cyan-700 hover:border-cyan-500' : 'border-gray-800 opacity-60'}`}
+                      style={{ backgroundColor: isAvailable ? 'rgba(6,182,212,0.05)' : 'rgba(0,0,0,0.3)' }}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-4xl">{trader.icon}</span>
+                        <div className="flex-1">
+                          <div className="font-bold text-gray-200">{trader.name}</div>
+                          <div className="text-xs text-gray-400">{trader.service}</div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-400 mb-3">{trader.description}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm">
+                          {cooldown > 0 ? (
+                            <span className="text-yellow-400">⏱️ {cooldown}с</span>
+                          ) : trader.cost === 0 ? (
+                            <span className="text-green-400">Бесплатно</span>
+                          ) : (
+                            <span className="text-yellow-400">💰 {formatNumber(trader.cost)}</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => useTrader(trader.id)}
+                          disabled={!isAvailable}
+                          className={`px-4 py-2 rounded-lg font-bold text-sm ${isAvailable ? 'bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                        >
+                          {cooldown > 0 ? 'Ожидание' : 'Использовать'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* All Seasons */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-200 mb-4">Все сезоны</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {SEASONS.map(season => {
+                  const isCurrent = season.id === currentSeason.id;
+                  return (
+                    <div
+                      key={season.id}
+                      className={`p-4 rounded-xl border-2 transition-all ${isCurrent ? 'scale-105' : 'opacity-70'}`}
+                      style={{ borderColor: season.color, backgroundColor: season.color + '10' }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-3xl">{season.icon}</span>
+                        <div>
+                          <div className="font-bold" style={{ color: season.color }}>{season.name}</div>
+                          {isCurrent && <div className="text-xs text-green-400">● Активен</div>}
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400 mb-2">{season.description}</div>
+                      <div className="space-y-1">
+                        {season.modifiers.map((mod, i) => (
+                          <div key={i} className="text-xs text-gray-300">• {mod.description}</div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

@@ -114,6 +114,112 @@ export const UNIQUE_ITEMS: UniqueItem[] = [
   { name: 'Перчатки Титана', icon: '🧤', slot: 'Перчатки', description: 'Рукавицы древнего гиганта', fixedStats: [{ name: 'ATK', value: 300 }, { name: 'DEF', value: 150 }], specialEffect: 'Каждый 5-й удар наносит двойной урон' },
 ];
 
+export interface Trader {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  service: string;
+  cost: number;
+  cooldown: number; // in seconds
+}
+
+export const TRADERS: Trader[] = [
+  { id: 'scavenger', name: 'Сборщик', icon: '🧹', description: 'Разбирает все предметы ниже Rare', service: 'Массовый разбор', cost: 0, cooldown: 60 },
+  { id: 'enchanter', name: 'Зачарователь', icon: '🔮', description: 'Улучшает случайный предмет на +1 уровень', service: 'Улучшение предмета', cost: 500, cooldown: 30 },
+  { id: 'mystic', name: 'Мистик', icon: '🎲', description: 'Превращает 3 предмета в 1 случайный более редкий', service: 'Трансмутация', cost: 200, cooldown: 45 },
+  { id: 'merchant', name: 'Торговец', icon: '💰', description: 'Продаёт случайный Rare+ предмет за золото', service: 'Покупка предмета', cost: 1000, cooldown: 120 },
+  { id: 'alchemist', name: 'Алхимик', icon: '⚗️', description: 'Конвертирует золото в опыт (1:1)', service: 'Конвертация золота в XP', cost: 100, cooldown: 10 },
+  { id: 'fortune_teller', name: 'Гадалка', icon: '🔮', description: 'Увеличивает удачу на 1 час', service: 'Бонус удачи +50%', cost: 300, cooldown: 3600 },
+];
+
+export interface Season {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  modifiers: { stat: string; value: number; description: string }[];
+  duration: number; // in days
+  color: string;
+}
+
+export const SEASONS: Season[] = [
+  {
+    id: 'lunatic',
+    name: 'Лунатик',
+    icon: '🌙',
+    description: 'Сила лунного света усиливает критические удары',
+    modifiers: [
+      { stat: 'CRIT', value: 25, description: '+25% шанс крита' },
+      { stat: 'ATK', value: 10, description: '+10% к урону' },
+    ],
+    duration: 7,
+    color: '#a855f7',
+  },
+  {
+    id: 'iron_fist',
+    name: 'Железный Кулак',
+    icon: '👊',
+    description: 'Эпоха неукротимой силы и несокрушимой защиты',
+    modifiers: [
+      { stat: 'DEF', value: 30, description: '+30% к защите' },
+      { stat: 'HP', value: 20, description: '+20% к здоровью' },
+      { stat: 'ATK', value: 15, description: '+15% к атаке' },
+    ],
+    duration: 7,
+    color: '#6b7280',
+  },
+  {
+    id: 'swift_wind',
+    name: 'Быстрый Ветер',
+    icon: '💨',
+    description: 'Время ускоряется, движения становятся молниеносными',
+    modifiers: [
+      { stat: 'SPD', value: 40, description: '+40% к скорости' },
+      { stat: 'DODGE', value: 20, description: '+20% к уклонению' },
+    ],
+    duration: 7,
+    color: '#06b6d4',
+  },
+  {
+    id: 'fortune',
+    name: 'Золотая Лихорадка',
+    icon: '💰',
+    description: 'Удача улыбается каждому, сокровища текут рекой',
+    modifiers: [
+      { stat: 'LCK', value: 50, description: '+50% к удаче' },
+      { stat: 'GOLD', value: 100, description: '+100% к золоту' },
+      { stat: 'LOOT', value: 25, description: '+25% к луту' },
+    ],
+    duration: 7,
+    color: '#fbbf24',
+  },
+  {
+    id: 'blood_moon',
+    name: 'Кровавая Луна',
+    icon: '🩸',
+    description: 'Ночь охоты - каждый удар смертоносен',
+    modifiers: [
+      { stat: 'ATK', value: 50, description: '+50% к атаке' },
+      { stat: 'CRIT', value: 15, description: '+15% к криту' },
+      { stat: 'DEF', value: -20, description: '-20% к защите' },
+    ],
+    duration: 7,
+    color: '#ef4444',
+  },
+  {
+    id: 'eternal',
+    name: 'Вечность',
+    icon: '∞',
+    description: 'Время остановилось, все характеристики усилены',
+    modifiers: [
+      { stat: 'ALL', value: 25, description: '+25% ко всем характеристикам' },
+    ],
+    duration: 7,
+    color: '#ec4899',
+  },
+];
+
 export interface Skill {
   id: string;
   name: string;
