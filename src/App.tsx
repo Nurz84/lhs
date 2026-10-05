@@ -1,761 +1,1025 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS, TRADERS, SEASONS, PASSIVE_UPGRADES,
+  rollRarity, generateItemName, generateItemStats,
+  getMonsterStats, getXpForLevel, formatNumber, getSkillCost,
+  calculateItemPower, compareItems, generateSetItem, generateUniqueItem,
+  getActiveSetBonuses, getTotalSetBonus,
+  type Item, type Character
+} from './gameData';
+import { YandexSDK } from './yandexSdk';
 
-interface Step {
-  id: number;
-  title: string;
-  icon: string;
-  sections: {
-    subtitle: string;
-    content: string[];
-    code?: string;
-    tip?: string;
-  }[];
-}
-
-const STEPS: Step[] = [
-  {
-    id: 1,
-    title: 'Регистрация разработчика',
-    icon: '📜',
-    sections: [
-      {
-        subtitle: 'Создание аккаунта',
-        content: [
-          'Перейдите на games.yandex.ru и войдите через Яндекс-аккаунт',
-          'Откройте раздел «Консоль разработчика» (yandex.ru/games/console)',
-          'Заполните профиль разработчика: имя, описание, контакты',
-          'Примите соглашение о публикации игр на платформе',
-          'Верификация занимает от 1 до 3 рабочих дней',
-        ],
-        tip: 'Для монетизации потребуется статус самозанятого или ИП. Физические лица тоже могут публиковать, но с ограничениями по выплатам.',
-      },
-      {
-        subtitle: 'Требования к игре',
-        content: [
-          'Игра должна работать в браузере (HTML5 + JavaScript)',
-          'Размер загружаемого архива — до 50 МБ (без внешних ресурсов)',
-          'Обязательная интеграция Yandex Games SDK',
-          'Адаптивный интерфейс для мобильных и десктопных устройств',
-          'Отсутствие сторонней рекламы и ссылок',
-          'Поддержка русского языка (желательно — других языков)',
-        ],
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: 'Подготовка сборки',
-    icon: '🔨',
-    sections: [
-      {
-        subtitle: 'Сборка проекта',
-        content: [
-          'Выполните команду npm run build в корне проекта',
-          'Проверьте, что в папке dist/ есть index.html и assets/',
-          'Все пути должны быть относительными (не абсолютными)',
-          'Убедитесь, что игра работает локально через любой HTTP-сервер',
-          'Заархивируйте папку dist/ в ZIP-файл',
-        ],
-        code: 'npm run build\nzip -r loot-hunter-stories.zip dist/',
-        tip: 'Яндекс не поддерживает загрузку по FTP или Git — только ZIP-архив через консоль разработчика.',
-      },
-      {
-        subtitle: 'Проверка перед загрузкой',
-        content: [
-          'Протестируйте игру в разных браузерах (Chrome, Firefox, Safari)',
-          'Проверьте работу на мобильных устройствах',
-          'Убедитесь, что нет консольных ошибок',
-          'Проверьте производительность (цель: 60 FPS)',
-          'Протестируйте сохранение прогресса',
-        ],
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Интеграция Yandex Games SDK',
-    icon: '⚙️',
-    sections: [
-      {
-        subtitle: 'Подключение SDK',
-        content: [
-          'Добавьте скрипт SDK в index.html перед основным скриптом',
-          'SDK загружается с CDN Яндекса автоматически',
-          'Инициализация происходит асинхронно — дождитесь события ready',
-        ],
-        code: `<!-- В <head> файла index.html -->
-<script src="/sdk.js"></script>`,
-        tip: 'Файл sdk.js автоматически подменяется Яндексом на их CDN при загрузке игры на платформу. Локально он не работает — это нормально.',
-      },
-      {
-        subtitle: 'Инициализация SDK',
-        content: [
-          'Вызовите YaGames.init() при загрузке игры',
-          'Сохраните полученный объект player и environment',
-          'Обработайте возможные ошибки инициализации',
-        ],
-        code: `// src/yandexSdk.ts
-export class YandexSDK {
-  private static ysdk: any = null;
-  private static player: any = null;
-
-  static async init() {
-    try {
-      this.ysdk = await YaGames.init();
-      this.player = await this.ysdk.getPlayer();
-      console.log('SDK инициализирован');
-      return true;
-    } catch (e) {
-      console.error('Ошибка SDK:', e);
-      return false;
-    }
-  }
-
-  static getSDK() { return this.ysdk; }
-  static getPlayer() { return this.player; }
-}`,
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: 'Сохранение прогресса',
-    icon: '💾',
-    sections: [
-      {
-        subtitle: 'Облачные сохранения',
-        content: [
-          'Яндекс предоставляет облачное хранилище для каждого игрока',
-          'Данные привязываются к аккаунту — доступны на всех устройствах',
-          'Максимальный размер — 100 КБ на игрока',
-          'Сохраняйте только ключевые данные (уровень, золото, инвентарь)',
-        ],
-        code: `// Сохранение данных
-export async function saveProgress(data: any) {
-  const player = YandexSDK.getPlayer();
-  if (!player) return;
-  
-  try {
-    await player.setData({
-      gameData: JSON.stringify(data),
-      timestamp: Date.now()
-    });
-  } catch (e) {
-    console.error('Ошибка сохранения:', e);
-  }
-}
-
-// Загрузка данных
-export async function loadProgress() {
-  const player = YandexSDK.getPlayer();
-  if (!player) return null;
-  
-  try {
-    const data = await player.getData(['gameData']);
-    if (data.gameData) {
-      return JSON.parse(data.gameData);
-    }
-  } catch (e) {
-    console.error('Ошибка загрузки:', e);
-  }
-  return null;
-}`,
-        tip: 'Всегда делайте fallback на localStorage — если SDK недоступен, игра должна работать автономно.',
-      },
-      {
-        subtitle: 'Что сохранять',
-        content: [
-          'Уровень персонажа и опыт',
-          'Количество золота и очков навыков',
-          'Список экипированных предметов (ID)',
-          'Уровни навыков и пассивок',
-          'Текущая зона и прогресс',
-          'ID текущего сезона',
-        ],
-      },
-    ],
-  },
-  {
-    id: 5,
-    title: 'Подключение рекламы',
-    icon: '💰',
-    sections: [
-      {
-        subtitle: 'Rewarded Video (за вознаграждение)',
-        content: [
-          'Игрок сам решает посмотреть рекламу за бонус',
-          'Идеально для: удвоение золота, бесплатный лут, бонусы',
-          'Можно показывать неограниченно, но с кулдауном',
-          'Приносит основной доход — 60-80% монетизации',
-        ],
-        code: `// Показ rewarded-рекламы
-export async function showRewardedAd(
-  onReward: () => void
-) {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) {
-    // Fallback для локальной разработки
-    onReward();
-    return;
-  }
-
-  try {
-    await ysdk.adv.showRewardedVideo({
-      callbacks: {
-        onOpen: () => {
-          // Поставьте игру на паузу
-          pauseGame();
-        },
-        onRewarded: () => {
-          // Выдайте награду игроку
-          onReward();
-        },
-        onClose: () => {
-          // Возобновите игру
-          resumeGame();
-        },
-        onError: (e) => {
-          console.error('Ошибка рекламы:', e);
-          resumeGame();
-        }
-      }
-    });
-  } catch (e) {
-    console.error('Не удалось показать рекламу:', e);
-  }
-}
-
-// Примеры использования в Loot Hunter Stories:
-// - Удвоение золота за убийство босса
-// - Бесплатная трансмутация у Мистика
-// - Дополнительный предмет из инвентаря
-// - Бонус к удаче на 30 минут`,
-      },
-      {
-        subtitle: 'Interstitial (межстраничная)',
-        content: [
-          'Показывается между игровыми сессиями',
-          'Нельзя показывать чаще 1 раза в 2 минуты',
-          'Не показывайте во время боя или важных действий',
-          'Лучшее время: смена зоны, смерть, переход между вкладками',
-        ],
-        code: `// Показ interstitial-рекламы
-export async function showInterstitialAd() {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return;
-
-  // Проверка кулдауна (минимум 2 минуты)
-  const now = Date.now();
-  const lastShow = localStorage.getItem('lastAdShow') || '0';
-  if (now - parseInt(lastShow) < 120000) return;
-
-  try {
-    await ysdk.adv.showFullscreenAdv({
-      callbacks: {
-        onOpen: () => pauseGame(),
-        onClose: (wasShown) => {
-          resumeGame();
-          if (wasShown) {
-            localStorage.setItem('lastAdShow', String(now));
-          }
-        },
-        onError: (e) => {
-          console.error('Ошибка:', e);
-          resumeGame();
-        }
-      }
-    });
-  } catch (e) {
-    console.error('Не удалось показать рекламу:', e);
-  }
-}
-
-// Где показывать в игре:
-// - После победы над боссом
-// - При переходе в новую зону
-// - Раз в 5-10 минут активного геймплея`,
-      },
-      {
-        subtitle: 'Идеи для rewarded-наград',
-        content: [
-          '🎁 Удвоение золота за убийство босса (x2 reward)',
-          '⚔️ Бесплатное улучшение предмета у Зачарователя',
-          '🎲 Дополнительная трансмутация у Мистика',
-          '🍀 Бонус +50% удачи на 30 минут',
-          '💎 Бесплатный уровень случайной пассивки',
-          '📦 Открыть сундук с редким предметом',
-          '✨ Мгновенная смена сезона (для тестирования)',
-          '🏆 x3 опыт за следующие 10 убийств',
-        ],
-        tip: 'Чем ценнее награда — тем охотнее игроки смотрят рекламу. Оптимально: 4-6 точек монетизации с разной ценностью.',
-      },
-    ],
-  },
-  {
-    id: 6,
-    title: 'Лидерборды и социальные функции',
-    icon: '🏆',
-    sections: [
-      {
-        subtitle: 'Таблицы лидеров',
-        content: [
-          'Яндекс предоставляет готовые лидерборды',
-          'Создайте таблицы в консоли разработчика',
-          'Отправляйте рекорды через SDK',
-          'Игроки видят позиции друзей и глобальный рейтинг',
-        ],
-        code: `// Отправка рекорда
-export async function submitScore(
-  score: number, 
-  leaderboardId: string = 'main'
-) {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return;
-
-  try {
-    const lb = await ysdk.getLeaderboards();
-    await lb.setLeaderboardScore(leaderboardId, score);
-  } catch (e) {
-    console.error('Ошибка отправки рекорда:', e);
-  }
-}
-
-// Получение топа игроков
-export async function getTopPlayers(
-  leaderboardId: string = 'main',
-  quantity: number = 10
-) {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return [];
-
-  try {
-    const lb = await ysdk.getLeaderboards();
-    const result = await lb.getLeaderboardEntries(
-      leaderboardId, 
-      { quantityAround: 3, quantityTop: quantity }
-    );
-    return result.entries;
-  } catch (e) {
-    console.error('Ошибка получения топа:', e);
-    return [];
-  }
-}
-
-// Рекомендуемые таблицы для Loot Hunter Stories:
-// - 'main' — максимальный уровень персонажа
-// - 'zone' — максимальная достигнутая зона
-// - 'bosses' — количество убитых боссов
-// - 'gold' — всего золота заработано`,
-      },
-      {
-        subtitle: 'Приглашение друзей',
-        content: [
-          'Используйте SDK для шеринга игры',
-          'Давайте бонусы за приглашённых друзей',
-          'Интегрируйте sharing через соцсети Яндекса',
-        ],
-        code: `// Поделиться игрой
-export async function shareGame() {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return;
-
-  try {
-    await ysdk.share({
-      image: 'share-image.png', // из папки с игрой
-      text: 'Я играю в Loot Hunter Stories — попробуй и ты!'
-    });
-  } catch (e) {
-    console.error('Ошибка шеринга:', e);
-  }
-}`,
-      },
-    ],
-  },
-  {
-    id: 7,
-    title: 'Публикация в консоли',
-    icon: '🚀',
-    sections: [
-      {
-        subtitle: 'Создание страницы игры',
-        content: [
-          'В консоли разработчика нажмите «Добавить игру»',
-          'Заполните название, описание, жанр',
-          'Укажите теги: RPG, Idle, Фэнтези, Лут',
-          'Добавьте возрастное ограничение (6+ или 12+)',
-          'Выберите ориентацию: ландшафтная или портретная',
-        ],
-        tip: 'Хорошее описание — ключ к успеху. Первые 2 строки видны в поиске, поэтому сделайте их цепляющими.',
-      },
-      {
-        subtitle: 'Загрузка файлов',
-        content: [
-          'Загрузите ZIP-архив с игрой (папка dist/)',
-          'Добавьте иконку 512x512 px (PNG)',
-          'Загрузите 3-5 скриншотов геймплея (1280x720 или 1920x1080)',
-          'Добавьте обложку для витрины (1920x1080)',
-          'Укажите URL для тестирования (опционально)',
-        ],
-      },
-      {
-        subtitle: 'Описание игры (пример)',
-        content: [
-          '📝 Название: Loot Hunter Stories',
-          '📝 Краткое: Средневековая RPG с бесконечным лутом, боссами и сетовыми предметами',
-          '📝 Полное описание: Погрузись в мир охотников за сокровищами!',
-          '   • Сражайся с 10 типами монстров и эпическими боссами',
-          '   • Собирай предметы 10 уровней редкости',
-          '   • Открывай уникальные именные артефакты',
-          '   • Собирай полные сеты для мощных бонусов',
-          '   • Прокачивай 10 навыков и 12 пассивных улучшений',
-          '   • Торгуй с NPC и используй сезонные модификаторы',
-        ],
-      },
-      {
-        subtitle: 'Отправка на модерацию',
-        content: [
-          'Нажмите «Отправить на модерацию»',
-          'Модерация занимает от 1 до 5 рабочих дней',
-          'Частые причины отказа:',
-          '   • Отсутствие интеграции SDK',
-          '   • Баги и вылеты',
-          '   • Неадаптивный интерфейс',
-          '   • Нарушение правил платформы',
-          'После одобрения игра появится в каталоге',
-        ],
-      },
-    ],
-  },
-  {
-    id: 8,
-    title: 'Монетизация и выплаты',
-    icon: '💎',
-    sections: [
-      {
-        subtitle: 'Источники дохода',
-        content: [
-          '📺 Rewarded Video — 50-70% дохода (основной источник)',
-          '📺 Interstitial — 20-30% дохода',
-          '💳 In-App Purchases — 10-20% дохода (опционально)',
-          '💰 Выплаты: ежемесячно, минимум 1000 рублей',
-          '📊 Доля разработчика: 50-70% от рекламного дохода',
-        ],
-      },
-      {
-        subtitle: 'Внутриигровые покупки (IAP)',
-        content: [
-          'Яндекс поддерживает покупки внутри игр',
-          'Настройте каталог товаров в консоли разработчика',
-          'Игроки покупают за реальные деньги через Яндекс',
-          'Комиссия платформы — 30%',
-        ],
-        code: `// Покупка внутри игры
-export async function purchaseItem(itemId: string) {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return false;
-
-  try {
-    const result = await ysdk.purchase({
-      id: itemId,
-      developerPayload: 'some-data'
-    });
-    
-    if (result.purchaseToken) {
-      // Подтвердите покупку на сервере
-      await confirmPurchase(result.purchaseToken);
-      return true;
-    }
-  } catch (e) {
-    console.error('Ошибка покупки:', e);
-  }
-  return false;
-}
-
-// Примеры товаров для Loot Hunter Stories:
-// - "no_ads" — отключение interstitial-рекламы (299₽)
-// - "starter_pack" — стартовый набор (99₽)
-// - "vip_month" — VIP на месяц (499₽)
-// - "gold_1000" — 1000 золота (49₽)
-// - "unique_scroll" — свиток уникального предмета (199₽)`,
-      },
-      {
-        subtitle: 'Оптимизация дохода',
-        content: [
-          '📈 A/B-тестируйте цены и локации рекламы',
-          '📈 Добавляйте новые точки rewarded-рекламы',
-          '📈 Увеличивайте удержание игроков (ежедневные награды)',
-          '📈 Следите за метриками: DAU, сессии, ARPDAU',
-          '📈 Обновляйте контент регулярно (сезоны, события)',
-        ],
-      },
-    ],
-  },
-  {
-    id: 9,
-    title: 'Продвижение и развитие',
-    icon: '📣',
-    sections: [
-      {
-        subtitle: 'ASO-оптимизация',
-        content: [
-          'Используйте ключевые слова в названии и описании',
-          'Популярные запросы: RPG, idle, лут, фэнтези, прокачка',
-          'Яркая иконка — главный фактор кликабельности',
-          'Качественные скриншоты с геймплеем',
-          'Регулярные обновления улучшают позиции',
-        ],
-      },
-      {
-        subtitle: 'Удержание игроков',
-        content: [
-          '🎁 Ежедневные награды за вход',
-          '🎁 Оффлайн-прогресс (начисление за время отсутствия)',
-          '🎁 Еженедельные события и соревнования',
-          '🎁 Достижения и ачивки',
-          '🎁 Сезонные обновления контента',
-          '🎁 Push-уведомления (с разрешения игрока)',
-        ],
-        tip: 'Игры с удержанием D7 > 20% получают в 5-10 раз больше показов от Яндекса.',
-      },
-      {
-        subtitle: 'Аналитика',
-        content: [
-          'Используйте встроенную аналитику Яндекса',
-          'Отслеживайте ключевые метрики:',
-          '   • DAU/MAU — активные игроки',
-          '   • Средняя длительность сессии',
-          '   • ARPDAU — доход на пользователя в день',
-          '   • Retention D1, D7, D30',
-          '   • Конверсия в просмотр рекламы',
-          'Интегрируйте собственные счётчики для deeper analytics',
-        ],
-        code: `// Отправка событий в аналитику
-export async function trackEvent(
-  eventName: string, 
-  params?: any
-) {
-  const ysdk = YandexSDK.getSDK();
-  if (!ysdk) return;
-
-  try {
-    await ysdk.features.analytics.dispatchEvent(
-      eventName,
-      params ? JSON.stringify(params) : ''
-    );
-  } catch (e) {
-    console.error('Ошибка аналитики:', e);
-  }
-}
-
-// Важные события для отслеживания:
-// - 'level_up' — повышение уровня
-// - 'boss_killed' — убийство босса
-// - 'item_looted' — получение предмета
-// - 'ad_watched' — просмотр рекламы
-// - 'purchase_made' — покупка
-// - 'zone_reached' — достижение зоны`,
-      },
-    ],
-  },
-  {
-    id: 10,
-    title: 'Чек-лист перед публикацией',
-    icon: '✅',
-    sections: [
-      {
-        subtitle: 'Технический чек-лист',
-        content: [
-          '☑️ SDK инициализируется без ошибок',
-          '☑️ Сохранения работают (и локально, и в облаке)',
-          '☑️ Rewarded-реклама показывает и выдаёт награду',
-          '☑️ Interstitial-реклама с кулдауном 2+ минуты',
-          '☑️ Игра ставится на паузу во время рекламы',
-          '☑️ Адаптивный интерфейс на мобильных',
-          '☑️ Нет консольных ошибок',
-          '☑️ Производительность > 30 FPS на слабых устройствах',
-          '☑️ Лидерборды отправляют и получают данные',
-          '☑️ Fallback для локальной разработки (без SDK)',
-        ],
-      },
-      {
-        subtitle: 'Контентный чек-лист',
-        content: [
-          '☑️ Иконка 512x512 px, яркая и читаемая',
-          '☑️ 3-5 скриншотов геймплея',
-          '☑️ Обложка для витрины 1920x1080',
-          '☑️ Описание с ключевыми словами',
-          '☑️ Теги: RPG, Idle, Фэнтези, Лут, Прокачка',
-          '☑️ Возрастное ограничение указано',
-          '☑️ Локализация на русский язык',
-          '☑️ Обучение для новых игроков',
-        ],
-      },
-    ],
-  },
-];
+type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'passives' | 'trade';
 
 function App() {
-  const [expandedStep, setExpandedStep] = useState<number | null>(1);
+  const [sdkReady, setSdkReady] = useState(false);
+  const [character, setCharacter] = useState<Character>({
+    level: 1, xp: 0, xpToNext: 50,
+    hp: 100, maxHp: 100,
+    atk: 10, def: 5, spd: 5, crit: 5, dodge: 5, lck: 5,
+    gold: 20, skillPoints: 0,
+  });
+
+  const [zone, setZone] = useState(1);
+  const [monsterIdx, setMonsterIdx] = useState(0);
+  const [monsterHp, setMonsterHp] = useState(0);
+  const [monsterMaxHp, setMonsterMaxHp] = useState(0);
+  const [inventory, setInventory] = useState<Item[]>([]);
+  const [equipment, setEquipment] = useState<Record<string, Item | null>>({});
+  const [skills, setSkills] = useState<Record<string, number>>({});
+  const [passives, setPassives] = useState<Record<string, number>>({});
+  const [lastDrop, setLastDrop] = useState<Item | null>(null);
+  const [battleLog, setBattleLog] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>('battle');
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [killCount, setKillCount] = useState(0);
+  const [showDamage, setShowDamage] = useState<{ amount: number; isCrit: boolean } | null>(null);
+  const [monstersKilledInZone, setMonstersKilledInZone] = useState(0);
+  const [isBoss, setIsBoss] = useState(false);
+  const [traderCooldowns, setTraderCooldowns] = useState<Record<string, number>>({});
+  const [currentSeason, setCurrentSeason] = useState(SEASONS[0]);
+  const [seasonStartTime, setSeasonStartTime] = useState(Date.now());
+  const [luckBoost, setLuckBoost] = useState(0);
+  const [luckBoostExpiry, setLuckBoostExpiry] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showRewardedAd, setShowRewardedAd] = useState<{ type: string; callback: () => void } | null>(null);
+
+  // Refs for game loop
+  const characterRef = useRef(character);
+  const monsterHpRef = useRef(monsterHp);
+  const inventoryRef = useRef(inventory);
+  const monstersKilledRef = useRef(monstersKilledInZone);
+  const zoneRef = useRef(zone);
+  const monsterIdxRef = useRef(monsterIdx);
+  const equipmentRef = useRef(equipment);
+  const skillsRef = useRef(skills);
+  const passivesRef = useRef(passives);
+  const isBossRef = useRef(isBoss);
+  const isPausedRef = useRef(isPaused);
+
+  useEffect(() => { characterRef.current = character; }, [character]);
+  useEffect(() => { monsterHpRef.current = monsterHp; }, [monsterHp]);
+  useEffect(() => { inventoryRef.current = inventory; }, [inventory]);
+  useEffect(() => { monstersKilledRef.current = monstersKilledInZone; }, [monstersKilledInZone]);
+  useEffect(() => { zoneRef.current = zone; }, [zone]);
+  useEffect(() => { monsterIdxRef.current = monsterIdx; }, [monsterIdx]);
+  useEffect(() => { equipmentRef.current = equipment; }, [equipment]);
+  useEffect(() => { skillsRef.current = skills; }, [skills]);
+  useEffect(() => { passivesRef.current = passives; }, [passives]);
+  useEffect(() => { isBossRef.current = isBoss; }, [isBoss]);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
+
+  // Инициализация Yandex SDK
+  useEffect(() => {
+    const initSDK = async () => {
+      const ready = await YandexSDK.init();
+      setSdkReady(ready);
+      
+      if (ready) {
+        // Загрузка сохранения
+        const savedData = await YandexSDK.loadProgress();
+        if (savedData) {
+          console.log('Загружено сохранение:', savedData);
+          // Восстановление состояния игры
+          if (savedData.character) setCharacter(savedData.character);
+          if (savedData.inventory) setInventory(savedData.inventory);
+          if (savedData.equipment) setEquipment(savedData.equipment);
+          if (savedData.skills) setSkills(savedData.skills);
+          if (savedData.passives) setPassives(savedData.passives);
+          if (savedData.zone) setZone(savedData.zone);
+          if (savedData.killCount) setKillCount(savedData.killCount);
+        }
+      }
+    };
+    
+    initSDK();
+  }, []);
+
+  // Автосохранение каждые 30 секунд
+  useEffect(() => {
+    if (!sdkReady) return;
+    
+    const interval = setInterval(async () => {
+      const data = {
+        character: characterRef.current,
+        inventory: inventoryRef.current,
+        equipment: equipmentRef.current,
+        skills: skillsRef.current,
+        passives: passivesRef.current,
+        zone: zoneRef.current,
+        killCount: killCount,
+        timestamp: Date.now()
+      };
+      
+      await YandexSDK.saveProgress(data);
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [sdkReady, killCount]);
+
+  const getEquipmentStats = useCallback(() => {
+    const stats = { ATK: 0, DEF: 0, HP: 0, SPD: 0, CRIT: 0, DODGE: 0, LCK: 0 };
+    Object.values(equipmentRef.current).forEach(item => {
+      if (item) {
+        item.stats.forEach(s => {
+          if (s.name === 'ALL') {
+            Object.keys(stats).forEach(key => { stats[key as keyof typeof stats] += s.value; });
+          } else if (s.name in stats) {
+            stats[s.name as keyof typeof stats] += s.value;
+          }
+        });
+      }
+    });
+    return stats;
+  }, []);
+
+  const getSkillBonuses = useCallback(() => {
+    const bonuses = { atk: 0, def: 0, hp: 0, spd: 0, crit: 0, dodge: 0, lck: 0, xp: 0, gold: 0, loot: 0 };
+    SKILLS.forEach(skill => {
+      const level = skillsRef.current[skill.id] || 0;
+      if (level > 0) {
+        const value = skill.effectPerLevel * level;
+        if (skill.effect in bonuses) {
+          bonuses[skill.effect as keyof typeof bonuses] += value;
+        }
+      }
+    });
+    return bonuses;
+  }, []);
+
+  const getPassiveBonuses = useCallback(() => {
+    const bonuses = { atk: 0, def: 0, hp: 0, spd: 0, crit: 0, dodge: 0, lck: 0, xp: 0, gold: 0, loot: 0, regen: 0, thorns: 0 };
+    PASSIVE_UPGRADES.forEach(passive => {
+      const level = passivesRef.current[passive.id] || 0;
+      if (level > 0) {
+        const value = passive.effectPerLevel * level;
+        if (passive.effect in bonuses) {
+          bonuses[passive.effect as keyof typeof bonuses] += value;
+        }
+      }
+    });
+    return bonuses;
+  }, []);
+
+  const getTotalStats = useCallback(() => {
+    const eqStats = getEquipmentStats();
+    const skillBonuses = getSkillBonuses();
+    const passiveBonuses = getPassiveBonuses();
+    const setBonuses = getTotalSetBonus(equipmentRef.current);
+    const char = characterRef.current;
+    
+    const seasonMultiplier = (stat: string) => {
+      const mod = currentSeason.modifiers.find(m => m.stat === stat || m.stat === 'ALL');
+      return mod ? mod.value / 100 : 0;
+    };
+    
+    const baseAtk = char.atk + eqStats.ATK + skillBonuses.atk + setBonuses.ATK + setBonuses.ALL;
+    const baseDef = char.def + eqStats.DEF + skillBonuses.def + setBonuses.DEF + setBonuses.ALL;
+    const baseHp = char.maxHp + eqStats.HP + skillBonuses.hp + setBonuses.HP + setBonuses.ALL;
+    const baseSpd = char.spd + eqStats.SPD + skillBonuses.spd + setBonuses.SPD + setBonuses.ALL;
+    const baseCrit = char.crit + eqStats.CRIT + skillBonuses.crit + setBonuses.CRIT + setBonuses.ALL;
+    const baseDodge = char.dodge + eqStats.DODGE + skillBonuses.dodge + setBonuses.DODGE + setBonuses.ALL;
+    const baseLck = char.lck + eqStats.LCK + skillBonuses.lck + setBonuses.LCK + setBonuses.ALL + luckBoost;
+    
+    const atkWithPassive = Math.floor(baseAtk * (1 + passiveBonuses.atk / 100));
+    const defWithPassive = Math.floor(baseDef * (1 + passiveBonuses.def / 100));
+    const hpWithPassive = Math.floor(baseHp * (1 + passiveBonuses.hp / 100));
+    const spdWithPassive = Math.floor(baseSpd * (1 + passiveBonuses.spd / 100));
+    const critWithPassive = Math.floor(baseCrit * (1 + passiveBonuses.crit / 100));
+    const dodgeWithPassive = Math.floor(baseDodge * (1 + passiveBonuses.dodge / 100));
+    const lckWithPassive = Math.floor(baseLck * (1 + passiveBonuses.lck / 100));
+    
+    return {
+      atk: Math.floor(atkWithPassive * (1 + seasonMultiplier('ATK'))),
+      def: Math.floor(defWithPassive * (1 + seasonMultiplier('DEF'))),
+      maxHp: Math.floor(hpWithPassive * (1 + seasonMultiplier('HP'))),
+      spd: Math.floor(spdWithPassive * (1 + seasonMultiplier('SPD'))),
+      crit: Math.floor(critWithPassive * (1 + seasonMultiplier('CRIT'))),
+      dodge: Math.floor(dodgeWithPassive * (1 + seasonMultiplier('DODGE'))),
+      lck: Math.floor(lckWithPassive * (1 + seasonMultiplier('LCK'))),
+      xpBonus: skillBonuses.xp + passiveBonuses.xp,
+      goldBonus: skillBonuses.gold + passiveBonuses.gold + (currentSeason.modifiers.find(m => m.stat === 'GOLD')?.value || 0),
+      lootBonus: skillBonuses.loot + passiveBonuses.loot + (currentSeason.modifiers.find(m => m.stat === 'LOOT')?.value || 0),
+      regen: passiveBonuses.regen,
+      thorns: passiveBonuses.thorns,
+    };
+  }, [getEquipmentStats, getSkillBonuses, getPassiveBonuses, currentSeason, luckBoost]);
+
+  const spawnMonster = useCallback(() => {
+    const idx = monsterIdxRef.current;
+    const z = zoneRef.current;
+    const killed = monstersKilledRef.current;
+    
+    if (killed > 0 && killed % 10 === 0) {
+      const bossIdx = Math.min(Math.floor(z / 3), BOSSES.length - 1);
+      const boss = BOSSES[bossIdx];
+      const stats = getMonsterStats(boss, z);
+      setMonsterHp(stats.hp * 2);
+      setMonsterMaxHp(stats.hp * 2);
+      setIsBoss(true);
+      setBattleLog(prev => [...prev.slice(-9), `⚠️ БОСС: ${boss.icon} ${boss.name} (Ур.${z})!`]);
+    } else {
+      const monster = MONSTERS[idx];
+      const stats = getMonsterStats(monster, z);
+      setMonsterHp(stats.hp);
+      setMonsterMaxHp(stats.hp);
+      setIsBoss(false);
+      setBattleLog(prev => [...prev.slice(-9), `Появился ${monster.icon} ${monster.name} (Ур.${z})!`]);
+    }
+  }, []);
+
+  useEffect(() => {
+    spawnMonster();
+  }, [spawnMonster]);
+
+  // Battle loop
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isPausedRef.current) return;
+      
+      const totalStats = getTotalStats();
+      const mIdx = monsterIdxRef.current;
+      const z = zoneRef.current;
+      const monster = MONSTERS[mIdx];
+      const monsterStats = getMonsterStats(monster, z);
+
+      const isCrit = Math.random() * 100 < totalStats.crit;
+      let damage = Math.max(1, totalStats.atk - monsterStats.atk * 0.1);
+      if (isCrit) damage *= 2;
+      damage = Math.floor(damage * (0.9 + Math.random() * 0.2));
+
+      const newMonsterHp = Math.max(0, monsterHpRef.current - damage);
+      setMonsterHp(newMonsterHp);
+
+      setShowDamage({ amount: damage, isCrit });
+      setTimeout(() => setShowDamage(null), 300);
+
+      if (newMonsterHp <= 0) {
+        const xpMultiplier = 1 + totalStats.xpBonus / 100;
+        const goldMultiplier = 1 + totalStats.goldBonus / 100;
+        const xpGain = Math.floor(monsterStats.xp * xpMultiplier);
+        const goldGain = Math.floor(monsterStats.gold * goldMultiplier);
+
+        setCharacter(prev => {
+          let newXp = prev.xp + xpGain;
+          let newLevel = prev.level;
+          let newXpToNext = prev.xpToNext;
+          let newMaxHp = prev.maxHp;
+          let newAtk = prev.atk;
+          let newDef = prev.def;
+          let newSkillPoints = prev.skillPoints;
+
+          while (newXp >= newXpToNext) {
+            newXp -= newXpToNext;
+            newLevel++;
+            newXpToNext = getXpForLevel(newLevel);
+            newMaxHp += 10;
+            newAtk += 2;
+            newDef += 1;
+            newSkillPoints += 1;
+          }
+
+          return {
+            ...prev,
+            xp: newXp,
+            level: newLevel,
+            xpToNext: newXpToNext,
+            maxHp: newMaxHp,
+            hp: newMaxHp,
+            atk: newAtk,
+            def: newDef,
+            gold: prev.gold + goldGain,
+            skillPoints: newSkillPoints,
+          };
+        });
+
+        setKillCount(prev => prev + 1);
+        setMonstersKilledInZone(prev => prev + 1);
+        setBattleLog(prev => [...prev.slice(-9), `${monster.icon} ${monster.name} побеждён! +${xpGain} XP, +${goldGain} 💰`]);
+
+        // Отправка рекорда в лидерборд
+        YandexSDK.submitScore(characterRef.current.level, 'main');
+        YandexSDK.submitScore(zoneRef.current, 'zone');
+        YandexSDK.trackEvent('monster_killed', { monster: monster.name, zone: z, isBoss: isBossRef.current });
+
+        const lootChance = 30 + totalStats.lootBonus;
+        const isBossKill = isBossRef.current;
+        
+        if (Math.random() * 100 < lootChance || isBossKill) {
+          let item: Item;
+          
+          if (isBossKill && Math.random() < 0.5) {
+            item = generateUniqueItem(z);
+            setBattleLog(prev => [...prev.slice(-9), `🌟 УНИКАЛЬНЫЙ ПРЕДМЕТ: ${item.name}!`]);
+          } else if (Math.random() < 0.15) {
+            const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+            const setName = SETS[Math.floor(Math.random() * SETS.length)].name;
+            const rarityIndex = Math.max(3, rollRarity(totalStats.lck));
+            item = generateSetItem(rarityIndex, slot, z, setName);
+          } else {
+            const rarityIndex = rollRarity(totalStats.lck);
+            const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+            item = {
+              id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+              name: generateItemName(slot, rarityIndex),
+              slot: slot.name,
+              icon: slot.icon,
+              rarityIndex,
+              level: z,
+              stats: generateItemStats(rarityIndex, slot, z),
+              value: Math.floor((5 + Math.random() * 10) * RARITIES[rarityIndex].multiplier * (1 + z / 5)),
+            };
+          }
+          
+          setLastDrop(item);
+          
+          const currentItem = equipmentRef.current[item.slot];
+          const comparison = compareItems(currentItem, item);
+          
+          if (comparison.better && comparison.difference > 0) {
+            setEquipment(prev => ({ ...prev, [item.slot]: item }));
+            if (currentItem) {
+              setInventory(prev => {
+                if (prev.length >= 100) return prev;
+                return [...prev, currentItem];
+              });
+            }
+            setBattleLog(prev => [...prev.slice(-9), `✨ Авто-экипировка: ${item.name} лучше текущего!`]);
+          } else {
+            if (inventoryRef.current.length < 100) {
+              setInventory(prev => [...prev, item]);
+            }
+          }
+          
+          setIsBoss(false);
+        }
+
+        const killed = monstersKilledRef.current + 1;
+        if (killed >= 10) {
+          setZone(prev => prev + 1);
+          setMonstersKilledInZone(0);
+          setMonsterIdx((mIdx + 1) % MONSTERS.length);
+          
+          // Interstitial реклама при смене зоны
+          YandexSDK.showInterstitialAd(
+            () => setIsPaused(true),
+            () => setIsPaused(false)
+          );
+        } else {
+          setMonsterIdx(Math.floor(Math.random() * Math.min(mIdx + 2, MONSTERS.length)));
+        }
+
+        setTimeout(() => spawnMonster(), 100);
+      } else {
+        const isDodge = Math.random() * 100 < totalStats.dodge;
+        if (!isDodge) {
+          const monsterDmg = Math.max(1, Math.floor(monsterStats.atk * (0.8 + Math.random() * 0.4) - totalStats.def * 0.5));
+          setCharacter(prev => ({
+            ...prev,
+            hp: Math.max(0, prev.hp - monsterDmg),
+          }));
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [getTotalStats, spawnMonster]);
+
+  // Auto heal
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isPausedRef.current) return;
+      
+      const totalStats = getTotalStats();
+      const regenBonus = totalStats.regen || 0;
+      const regenPercent = 0.05 + (regenBonus / 100);
+      setCharacter(prev => ({
+        ...prev,
+        hp: Math.min(totalStats.maxHp, prev.hp + Math.floor(totalStats.maxHp * regenPercent)),
+      }));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [getTotalStats]);
+
+  const equipItem = (item: Item) => {
+    const currentEquipped = equipment[item.slot];
+    setEquipment(prev => ({ ...prev, [item.slot]: item }));
+    setInventory(prev => {
+      const filtered = prev.filter(i => i.id !== item.id);
+      if (currentEquipped) return [...filtered, currentEquipped];
+      return filtered;
+    });
+    setSelectedItem(null);
+  };
+
+  const unequipItem = (slot: string) => {
+    const item = equipment[slot];
+    if (item) {
+      setEquipment(prev => ({ ...prev, [slot]: null }));
+      setInventory(prev => [...prev, item]);
+    }
+  };
+
+  const scrapItem = (item: Item) => {
+    setInventory(prev => prev.filter(i => i.id !== item.id));
+    setCharacter(prev => ({ ...prev, gold: prev.gold + item.value }));
+    if (selectedItem?.id === item.id) setSelectedItem(null);
+  };
+
+  const learnSkill = (skillId: string) => {
+    const skill = SKILLS.find(s => s.id === skillId)!;
+    const level = skills[skillId] || 0;
+    if (level >= skill.maxLevel) return;
+    const cost = getSkillCost(skill, level);
+    if (character.gold >= cost && character.skillPoints > 0) {
+      setCharacter(prev => ({ ...prev, gold: prev.gold - cost, skillPoints: prev.skillPoints - 1 }));
+      setSkills(prev => ({ ...prev, [skillId]: level + 1 }));
+    }
+  };
+
+  const buyPassive = (passiveId: string) => {
+    const passive = PASSIVE_UPGRADES.find(p => p.id === passiveId)!;
+    const level = passives[passiveId] || 0;
+    if (level >= passive.maxLevel) return;
+    const cost = Math.floor(passive.baseCost * Math.pow(passive.costMultiplier, level));
+    if (character.gold >= cost) {
+      setCharacter(prev => ({ ...prev, gold: prev.gold - cost }));
+      setPassives(prev => ({ ...prev, [passiveId]: level + 1 }));
+    }
+  };
+
+  const autoEquip = () => {
+    const itemsBySlot: Record<string, Item[]> = {};
+    inventory.forEach(item => {
+      if (!itemsBySlot[item.slot]) itemsBySlot[item.slot] = [];
+      itemsBySlot[item.slot].push(item);
+    });
+
+    const newEquipment: Record<string, Item | null> = { ...equipment };
+    const itemsToEquip: Item[] = [];
+    const itemsToRemove: Item[] = [];
+
+    Object.keys(itemsBySlot).forEach(slot => {
+      const items = itemsBySlot[slot];
+      const currentItem = equipment[slot];
+      
+      let bestItem = items[0];
+      let bestPower = calculateItemPower(items[0]);
+      
+      for (let i = 1; i < items.length; i++) {
+        const power = calculateItemPower(items[i]);
+        if (power > bestPower) {
+          bestPower = power;
+          bestItem = items[i];
+        }
+      }
+
+      const comparison = compareItems(currentItem, bestItem);
+      
+      if (comparison.better) {
+        itemsToEquip.push(bestItem);
+        if (currentItem) {
+          itemsToRemove.push(currentItem);
+        }
+        newEquipment[slot] = bestItem;
+      }
+    });
+
+    if (itemsToEquip.length > 0) {
+      setEquipment(newEquipment);
+      setInventory(prev => {
+        let newInv = prev.filter(item => !itemsToEquip.some(eq => eq.id === item.id));
+        itemsToRemove.forEach(oldItem => {
+          newInv.push(oldItem);
+        });
+        return newInv;
+      });
+      setBattleLog(prev => [...prev.slice(-9), `🔄 Авто-экипировка: заменено ${itemsToEquip.length} предметов`]);
+    }
+  };
+
+  const getItemComparison = (item: Item) => {
+    const currentItem = equipment[item.slot];
+    return compareItems(currentItem, item);
+  };
+
+  // Rewarded Ad функции
+  const requestRewardedAd = (type: string, callback: () => void) => {
+    setShowRewardedAd({ type, callback });
+  };
+
+  const handleRewardedAdComplete = () => {
+    if (showRewardedAd) {
+      showRewardedAd.callback();
+      setShowRewardedAd(null);
+    }
+  };
+
+  // Trader functions с rewarded ads
+  const useTrader = (traderId: string) => {
+    const trader = TRADERS.find(t => t.id === traderId)!;
+    const cooldown = traderCooldowns[traderId] || 0;
+    
+    if (cooldown > 0) return;
+    if (character.gold < trader.cost) return;
+
+    setCharacter(prev => ({ ...prev, gold: prev.gold - trader.cost }));
+    setTraderCooldowns(prev => ({ ...prev, [traderId]: trader.cooldown }));
+
+    switch (traderId) {
+      case 'scavenger':
+        const toScrap = inventory.filter(i => i.rarityIndex <= 2 && !i.isUnique);
+        const totalValue = toScrap.reduce((sum, i) => sum + i.value, 0);
+        setInventory(prev => prev.filter(i => i.rarityIndex > 2 || i.isUnique));
+        setCharacter(prev => ({ ...prev, gold: prev.gold + totalValue }));
+        setBattleLog(prev => [...prev.slice(-9), `🧹 Сборщик разобрал ${toScrap.length} предметов за 💰${formatNumber(totalValue)}`]);
+        break;
+        
+      case 'enchanter':
+        if (inventory.length > 0) {
+          const randomIdx = Math.floor(Math.random() * inventory.length);
+          const item = inventory[randomIdx];
+          const upgradedItem = {
+            ...item,
+            level: item.level + 1,
+            stats: item.stats.map(s => ({ ...s, value: Math.floor(s.value * 1.2) })),
+            value: Math.floor(item.value * 1.5),
+          };
+          setInventory(prev => {
+            const newInv = [...prev];
+            newInv[randomIdx] = upgradedItem;
+            return newInv;
+          });
+          setBattleLog(prev => [...prev.slice(-9), `🔮 Зачарователь улучшил ${item.name} до уровня ${upgradedItem.level}!`]);
+        }
+        break;
+        
+      case 'mystic':
+        const lowItems = inventory.filter(i => !i.isUnique).slice(0, 3);
+        if (lowItems.length >= 3) {
+          const avgRarity = Math.min(9, Math.floor(lowItems.reduce((sum, i) => sum + i.rarityIndex, 0) / 3) + 1);
+          const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+          const newItem: Item = {
+            id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+            name: generateItemName(slot, avgRarity),
+            slot: slot.name,
+            icon: slot.icon,
+            rarityIndex: avgRarity,
+            level: zone,
+            stats: generateItemStats(avgRarity, slot, zone),
+            value: Math.floor((5 + Math.random() * 10) * RARITIES[avgRarity].multiplier * (1 + zone / 5)),
+          };
+          setInventory(prev => {
+            const newInv = prev.filter(i => !lowItems.includes(i));
+            return [...newInv, newItem];
+          });
+          setBattleLog(prev => [...prev.slice(-9), `🎲 Мистик трансмутировал 3 предмета в ${newItem.name}!`]);
+        }
+        break;
+        
+      case 'merchant':
+        const rarity = Math.min(9, 3 + Math.floor(Math.random() * 3));
+        const slot = EQUIPMENT_SLOTS[Math.floor(Math.random() * EQUIPMENT_SLOTS.length)];
+        const boughtItem: Item = {
+          id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+          name: generateItemName(slot, rarity),
+          slot: slot.name,
+          icon: slot.icon,
+          rarityIndex: rarity,
+          level: zone,
+          stats: generateItemStats(rarity, slot, zone),
+          value: Math.floor((5 + Math.random() * 10) * RARITIES[rarity].multiplier * (1 + zone / 5)),
+        };
+        if (inventory.length < 100) {
+          setInventory(prev => [...prev, boughtItem]);
+          setBattleLog(prev => [...prev.slice(-9), `💰 Торговец продал ${boughtItem.name}!`]);
+        }
+        break;
+        
+      case 'alchemist':
+        setCharacter(prev => ({ ...prev, xp: prev.xp + 100 }));
+        setBattleLog(prev => [...prev.slice(-9), `⚗️ Алхимик конвертировал золото в +100 XP!`]);
+        break;
+        
+      case 'fortune_teller':
+        setLuckBoost(50);
+        setLuckBoostExpiry(Date.now() + 3600000);
+        setBattleLog(prev => [...prev.slice(-9), `🔮 Гадалка усилила удачу на +50% на 1 час!`]);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTraderCooldowns(prev => {
+        const newCooldowns = { ...prev };
+        Object.keys(newCooldowns).forEach(key => {
+          if (newCooldowns[key] > 0) {
+            newCooldowns[key] = Math.max(0, newCooldowns[key] - 1);
+          }
+        });
+        return newCooldowns;
+      });
+
+      if (luckBoostExpiry > 0 && Date.now() > luckBoostExpiry) {
+        setLuckBoost(0);
+        setLuckBoostExpiry(0);
+      }
+
+      const seasonDuration = currentSeason.duration * 24 * 60 * 60 * 1000;
+      if (Date.now() - seasonStartTime > seasonDuration) {
+        const currentIdx = SEASONS.findIndex(s => s.id === currentSeason.id);
+        const nextIdx = (currentIdx + 1) % SEASONS.length;
+        setCurrentSeason(SEASONS[nextIdx]);
+        setSeasonStartTime(Date.now());
+        setBattleLog(prev => [...prev.slice(-9), `🌟 Новый сезон: ${SEASONS[nextIdx].name}!`]);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentSeason, seasonStartTime, luckBoostExpiry]);
+
+  const totalStats = getTotalStats();
+  const monster = MONSTERS[monsterIdx];
 
   return (
     <div className="min-h-screen text-gold" style={{ backgroundColor: '#1a1208', fontFamily: "'Crimson Text', Georgia, serif" }}>
-      {/* Header */}
       <header className="border-b-2 border-wood sticky top-0 z-50 shadow-lg" style={{ backgroundColor: '#2a1f0e' }}>
-        <div className="max-w-5xl mx-auto px-4 py-6">
-          <div className="text-center">
-            <h1 className="text-3xl md:text-4xl font-bold tracking-wider mb-2" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h1 className="text-3xl font-bold tracking-wider" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>
               ⚔️ Loot Hunter Stories
             </h1>
-            <div className="ornate-divider my-3" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, #8b6234, #b8860b, #8b6234, transparent)' }} />
-            <p className="text-xl" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>
-              📜 ПУТЕВОДИТЕЛЬ ПО ЯНДЕКС ИГРАМ
-            </p>
-            <p className="text-sm mt-2" style={{ color: '#8b7355' }}>
-              Пошаговая инструкция по публикации и монетизации
-            </p>
+            <div className="flex items-center gap-4 text-sm flex-wrap">
+              <div className="text-center">
+                <div className="text-xs" style={{ color: '#8b7355' }}>Уровень</div>
+                <div className="text-lg font-bold" style={{ color: '#d4a843' }}>{character.level}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs" style={{ color: '#8b7355' }}>Зона</div>
+                <div className="text-lg font-bold" style={{ color: '#b8860b' }}>{zone}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs" style={{ color: '#8b7355' }}>💰 Золото</div>
+                <div className="text-lg font-bold" style={{ color: '#f0c75e' }}>{formatNumber(character.gold)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs" style={{ color: '#8b7355' }}>🎯 Очки навыков</div>
+                <div className="text-lg font-bold" style={{ color: '#6b8e4e' }}>{character.skillPoints}</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-2">
+            <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
+              <span>XP: {formatNumber(character.xp)} / {formatNumber(character.xpToNext)}</span>
+              <span>{((character.xp / character.xpToNext) * 100).toFixed(1)}%</span>
+            </div>
+            <div className="h-3 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
+              <div
+                className="h-full transition-all"
+                style={{ 
+                  width: `${(character.xp / character.xpToNext) * 100}%`,
+                  background: 'linear-gradient(180deg, #4a7fb5 0%, #2c5f8a 100%)'
+                }}
+              />
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Summary */}
-      <div className="max-w-5xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          {[
-            { label: 'Шагов', value: '10', icon: '📋' },
-            { label: 'Время', value: '1-2 нед', icon: '⏳' },
-            { label: 'Доход', value: 'от 5K₽/мес', icon: '💰' },
-            { label: 'Сложность', value: 'Средняя', icon: '⚡' },
-          ].map((item, i) => (
-            <div key={i} className="rounded-lg border-2 p-3 text-center" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e' }}>
-              <div className="text-2xl mb-1">{item.icon}</div>
-              <div className="text-xs" style={{ color: '#8b7355' }}>{item.label}</div>
-              <div className="text-lg font-bold" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>{item.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-4">
-          {STEPS.map(step => (
-            <div
-              key={step.id}
-              className="rounded-xl border-2 overflow-hidden"
+      <nav className="border-b-2" style={{ backgroundColor: '#231809', borderColor: '#5c3d1e' }}>
+        <div className="max-w-7xl mx-auto px-4 flex gap-1 flex-wrap">
+          {([
+            { id: 'battle' as Tab, label: '⚔️ Бой' },
+            { id: 'character' as Tab, label: '👤 Персонаж' },
+            { id: 'inventory' as Tab, label: '🎒 Инвентарь' },
+            { id: 'skills' as Tab, label: '📖 Навыки' },
+            { id: 'passives' as Tab, label: '💎 Пассивки' },
+            { id: 'trade' as Tab, label: '🏪 Торговля' },
+          ]).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-3 text-sm font-medium border-b-2 transition-all"
               style={{
-                backgroundColor: '#2a1f0e',
-                borderColor: expandedStep === step.id ? '#b8860b' : '#5c3d1e',
-                boxShadow: expandedStep === step.id ? '0 0 20px rgba(184,134,11,0.2)' : 'none',
+                borderBottomColor: activeTab === tab.id ? '#b8860b' : 'transparent',
+                color: activeTab === tab.id ? '#f0c75e' : '#8b7355',
+                fontFamily: "'Cinzel', serif",
+                letterSpacing: '0.05em',
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
               }}
             >
-              {/* Step header */}
-              <button
-                onClick={() => setExpandedStep(expandedStep === step.id ? null : step.id)}
-                className="w-full p-4 flex items-center gap-4 text-left transition-all"
-                style={{ backgroundColor: expandedStep === step.id ? '#3d2d14' : 'transparent' }}
-              >
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shrink-0"
-                  style={{
-                    background: 'linear-gradient(135deg, #8b6234 0%, #5c3d1e 100%)',
-                    border: '2px solid #b8860b',
-                    color: '#f0c75e',
-                    fontFamily: "'Cinzel', serif",
-                  }}
-                >
-                  {step.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {activeTab === 'battle' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="rounded-xl border-2 p-6" style={{ 
+                backgroundColor: '#2a1f0e', 
+                borderColor: isBoss ? '#8b2020' : '#5c3d1e',
+                boxShadow: isBoss ? '0 0 30px rgba(139,32,32,0.4), inset 0 0 20px rgba(0,0,0,0.5)' : 'inset 0 0 20px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.5)'
+              }}>
+                <div className="text-center mb-4">
+                  <div className="text-sm mb-2" style={{ color: '#8b7355' }}>
+                    Зона {zone} • Убито: {monstersKilledInZone}/10
+                    {isBoss && <span className="ml-2 font-bold" style={{ color: '#c0392b' }}>⚠️ БОСС!</span>}
+                  </div>
+                  <div className="text-6xl mb-2 relative inline-block">
+                    {monster.icon}
+                    {showDamage && (
+                      <div
+                        className="absolute -top-4 -right-8 text-2xl font-bold animate-bounce"
+                        style={{ color: showDamage.isCrit ? '#f0c75e' : '#c0392b' }}
+                      >
+                        -{formatNumber(showDamage.amount)}{showDamage.isCrit ? '!' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xl font-bold" style={{ color: isBoss ? '#c0392b' : '#e8dcc4' }}>{monster.name}</div>
+                  <div className="text-sm" style={{ color: '#8b7355' }}>Уровень {zone}</div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-xs" style={{ color: '#8b7355' }}>ШАГ {step.id} ИЗ {STEPS.length}</div>
-                  <div className="text-lg font-bold" style={{ color: '#e8dcc4', fontFamily: "'Cinzel', serif" }}>
-                    {step.title}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
+                    <span>HP: {formatNumber(monsterHp)} / {formatNumber(monsterMaxHp)}</span>
+                    <span>{((monsterHp / monsterMaxHp) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-4 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
+                    <div
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${(monsterHp / monsterMaxHp) * 100}%`,
+                        background: 'linear-gradient(180deg, #8b2020 0%, #5c1a1a 100%)'
+                      }}
+                    />
                   </div>
                 </div>
-                <div className="text-2xl transition-transform" style={{ color: '#b8860b', transform: expandedStep === step.id ? 'rotate(180deg)' : 'rotate(0)' }}>
-                  ▼
+                <div>
+                  <div className="flex justify-between text-xs mb-1" style={{ color: '#8b7355' }}>
+                    <span>Ваше HP: {formatNumber(character.hp)} / {formatNumber(totalStats.maxHp)}</span>
+                    <span>{((character.hp / totalStats.maxHp) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-4 rounded overflow-hidden" style={{ backgroundColor: '#0d0a04', border: '1px solid #5c3d1e' }}>
+                    <div
+                      className="h-full transition-all"
+                      style={{ 
+                        width: `${(character.hp / totalStats.maxHp) * 100}%`,
+                        background: 'linear-gradient(180deg, #4a7a3a 0%, #2d5a1e 100%)'
+                      }}
+                    />
+                  </div>
                 </div>
-              </button>
+              </div>
 
-              {/* Step content */}
-              {expandedStep === step.id && (
-                <div className="p-4 border-t-2" style={{ borderColor: '#5c3d1e' }}>
-                  {step.sections.map((section, i) => (
-                    <div key={i} className="mb-6 last:mb-0">
-                      <h4 className="text-base font-bold mb-3 flex items-center gap-2" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>
-                        <span style={{ color: '#b8860b' }}>❖</span>
-                        {section.subtitle}
-                      </h4>
-                      
-                      <ul className="space-y-2 mb-3">
-                        {section.content.map((item, j) => (
-                          <li key={j} className="flex gap-2 text-sm" style={{ color: '#e8dcc4' }}>
-                            <span style={{ color: '#b8860b' }}>•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-
-                      {section.code && (
-                        <div className="rounded-lg border overflow-hidden mb-3" style={{ borderColor: '#5c3d1e' }}>
-                          <div className="px-3 py-1 text-xs" style={{ backgroundColor: '#3d2d14', color: '#b8860b', fontFamily: "'Cinzel', serif" }}>
-                            💻 КОД
-                          </div>
-                          <pre className="p-3 text-xs overflow-x-auto" style={{ backgroundColor: '#0d0a04', color: '#a89880', fontFamily: "'Courier New', monospace" }}>
-                            <code>{section.code}</code>
-                          </pre>
-                        </div>
-                      )}
-
-                      {section.tip && (
-                        <div className="rounded-lg border-2 p-3 mt-3" style={{ backgroundColor: 'rgba(184,134,11,0.1)', borderColor: '#b8860b' }}>
-                          <div className="flex gap-2">
-                            <span className="text-lg">💡</span>
-                            <div>
-                              <div className="text-xs font-bold mb-1" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>СОВЕТ МУДРЕЦА</div>
-                              <div className="text-sm" style={{ color: '#e8dcc4' }}>{section.tip}</div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-2" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>📜 Журнал боя</h3>
+                <div className="space-y-1 max-h-40 overflow-y-auto text-sm custom-scrollbar">
+                  {battleLog.slice().reverse().map((log, i) => (
+                    <div key={i} style={{ color: '#8b7355' }}>{log}</div>
                   ))}
+                </div>
+              </div>
+
+              {lastDrop && (
+                <div
+                  className="rounded-xl border-2 p-4"
+                  style={{
+                    borderColor: RARITIES[lastDrop.rarityIndex].borderColor,
+                    backgroundColor: RARITIES[lastDrop.rarityIndex].bgColor,
+                    boxShadow: `0 0 20px ${RARITIES[lastDrop.rarityIndex].glowColor}`,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{lastDrop.icon}</span>
+                    <div className="flex-1">
+                      <div className="text-xs uppercase" style={{ color: RARITIES[lastDrop.rarityIndex].color }}>
+                        {RARITIES[lastDrop.rarityIndex].name}
+                      </div>
+                      <div className="font-bold" style={{ color: RARITIES[lastDrop.rarityIndex].color }}>
+                        {lastDrop.name}
+                      </div>
+                      <div className="text-xs text-gray-400">{lastDrop.slot} • Ур.{lastDrop.level}</div>
+                    </div>
+                    <div className="text-yellow-400 text-sm">💰{formatNumber(lastDrop.value)}</div>
+                  </div>
                 </div>
               )}
             </div>
-          ))}
-        </div>
 
-        {/* Footer */}
-        <div className="mt-8 rounded-xl border-2 p-6 text-center" style={{ backgroundColor: '#2a1f0e', borderColor: '#b8860b' }}>
-          <div className="text-3xl mb-2">⚜️</div>
-          <h3 className="text-xl font-bold mb-2" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>
-            ПУТЬ ОХОТНИКА ЗА СОКРОВИЩАМИ
-          </h3>
-          <p className="text-sm mb-4" style={{ color: '#8b7355' }}>
-            Следуйте этому гайду шаг за шагом, и ваша игра покорит Яндекс Игры!
-          </p>
-          <div className="ornate-divider my-4" style={{ height: '2px', background: 'linear-gradient(90deg, transparent, #8b6234, #b8860b, #8b6234, transparent)' }} />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <div className="text-2xl mb-1">🎮</div>
-              <div className="font-bold" style={{ color: '#d4a843' }}>Создайте игру</div>
-              <div style={{ color: '#8b7355' }}>Качественный геймплей — основа всего</div>
-            </div>
-            <div>
-              <div className="text-2xl mb-1">📢</div>
-              <div className="font-bold" style={{ color: '#d4a843' }}>Интегрируйте SDK</div>
-              <div style={{ color: '#8b7355' }}>Сохранения, реклама, лидерборды</div>
-            </div>
-            <div>
-              <div className="text-2xl mb-1">💰</div>
-              <div className="font-bold" style={{ color: '#d4a843' }}>Монетизируйте</div>
-              <div style={{ color: '#8b7355' }}>Rewarded видео + IAP = доход</div>
+            <div className="space-y-4">
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-3" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>⚔️ Характеристики</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>⚔️ ATK</span><span className="font-bold" style={{ color: '#c0392b' }}>{totalStats.atk}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🛡️ DEF</span><span className="font-bold" style={{ color: '#4a7fb5' }}>{totalStats.def}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>❤️ HP</span><span className="font-bold" style={{ color: '#6b8e4e' }}>{totalStats.maxHp}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>⚡ SPD</span><span className="font-bold" style={{ color: '#d4a843' }}>{totalStats.spd}</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🎯 CRIT</span><span className="font-bold" style={{ color: '#e67e22' }}>{totalStats.crit}%</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>💨 DODGE</span><span className="font-bold" style={{ color: '#1abc9c' }}>{totalStats.dodge}%</span></div>
+                  <div className="flex justify-between"><span style={{ color: '#8b7355' }}>🍀 LCK</span><span className="font-bold" style={{ color: '#9b59b6' }}>{totalStats.lck}</span></div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.5)' }}>
+                <h3 className="text-sm font-bold mb-3" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>🛡️ Экипировка</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {EQUIPMENT_SLOTS.map(slot => {
+                    const item = equipment[slot.name];
+                    return (
+                      <div
+                        key={slot.name}
+                        className="p-2 rounded border text-center cursor-pointer transition-all"
+                        style={{
+                          borderColor: item ? RARITIES[item.rarityIndex].borderColor : '#5c3d1e',
+                          backgroundColor: item ? RARITIES[item.rarityIndex].bgColor : '#1a1208',
+                        }}
+                        onClick={() => item && unequipItem(slot.name)}
+                      >
+                        <div className="text-2xl">{item ? item.icon : slot.icon}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>{slot.name}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="text-center mt-6 text-xs" style={{ color: '#5c3d1e' }}>
-          © Loot Hunter Stories • Гайд по Яндекс Играм
-        </div>
-      </div>
+        {activeTab === 'character' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="rounded-xl border-2 p-6" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e' }}>
+              <h3 className="text-lg font-bold mb-4" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>👤 Персонаж</h3>
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-2">🧙</div>
+                <div className="text-2xl font-bold" style={{ color: '#d4a843' }}>Уровень {character.level}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg p-3" style={{ backgroundColor: '#1a1208' }}>
+                  <div style={{ color: '#8b7355' }}>⚔️ ATK</div>
+                  <div className="text-xl font-bold" style={{ color: '#c0392b' }}>{totalStats.atk}</div>
+                </div>
+                <div className="rounded-lg p-3" style={{ backgroundColor: '#1a1208' }}>
+                  <div style={{ color: '#8b7355' }}>🛡️ DEF</div>
+                  <div className="text-xl font-bold" style={{ color: '#4a7fb5' }}>{totalStats.def}</div>
+                </div>
+                <div className="rounded-lg p-3" style={{ backgroundColor: '#1a1208' }}>
+                  <div style={{ color: '#8b7355' }}>❤️ HP</div>
+                  <div className="text-xl font-bold" style={{ color: '#6b8e4e' }}>{totalStats.maxHp}</div>
+                </div>
+                <div className="rounded-lg p-3" style={{ backgroundColor: '#1a1208' }}>
+                  <div style={{ color: '#8b7355' }}>⚡ SPD</div>
+                  <div className="text-xl font-bold" style={{ color: '#d4a843' }}>{totalStats.spd}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'inventory' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>🎒 Инвентарь ({inventory.length}/100)</h3>
+              <button onClick={autoEquip} className="btn-medieval-primary px-4 py-2 rounded-lg">
+                ⚡ Авто-экипировка
+              </button>
+            </div>
+            {inventory.length === 0 ? (
+              <div className="text-center py-20" style={{ color: '#8b7355' }}>
+                <div className="text-6xl mb-4">🎒</div>
+                <p>Инвентарь пуст</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[600px] overflow-y-auto custom-scrollbar">
+                {inventory.map(item => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-lg border cursor-pointer hover:scale-105 transition-all"
+                    style={{
+                      borderColor: RARITIES[item.rarityIndex].borderColor,
+                      backgroundColor: RARITIES[item.rarityIndex].bgColor,
+                    }}
+                    onClick={() => setSelectedItem(item)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs" style={{ color: RARITIES[item.rarityIndex].color }}>{RARITIES[item.rarityIndex].name}</div>
+                        <div className="text-sm font-medium truncate" style={{ color: '#e8dcc4' }}>{item.name}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>{item.slot} • Ур.{item.level}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'skills' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>📖 Навыки</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {SKILLS.map(skill => {
+                const level = skills[skill.id] || 0;
+                const cost = getSkillCost(skill, level);
+                const canLearn = character.gold >= cost && character.skillPoints > 0 && level < skill.maxLevel;
+                
+                return (
+                  <div key={skill.id} className="p-4 rounded-xl border-2" style={{ backgroundColor: '#2a1f0e', borderColor: canLearn ? '#b8860b' : '#5c3d1e' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{skill.icon}</span>
+                      <div className="flex-1">
+                        <div className="font-bold" style={{ color: '#e8dcc4' }}>{skill.name}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>Ур. {level}/{skill.maxLevel}</div>
+                        <div className="text-sm" style={{ color: '#8b7355' }}>{skill.description}</div>
+                      </div>
+                      <button
+                        onClick={() => learnSkill(skill.id)}
+                        disabled={!canLearn}
+                        className={canLearn ? 'btn-medieval-primary px-4 py-2 rounded-lg' : 'btn-medieval px-4 py-2 rounded-lg opacity-50 cursor-not-allowed'}
+                      >
+                        💰{formatNumber(cost)}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'passives' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>💎 Пассивные улучшения</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {PASSIVE_UPGRADES.map(passive => {
+                const level = passives[passive.id] || 0;
+                const cost = Math.floor(passive.baseCost * Math.pow(passive.costMultiplier, level));
+                const canAfford = character.gold >= cost;
+                
+                return (
+                  <div key={passive.id} className="p-4 rounded-xl border-2" style={{ backgroundColor: '#2a1f0e', borderColor: canAfford ? '#b8860b' : '#5c3d1e' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{passive.icon}</span>
+                      <div className="flex-1">
+                        <div className="font-bold" style={{ color: '#e8dcc4' }}>{passive.name}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>Ур. {level}/{passive.maxLevel}</div>
+                        <div className="text-sm" style={{ color: '#8b7355' }}>{passive.description}</div>
+                      </div>
+                      <button
+                        onClick={() => buyPassive(passive.id)}
+                        disabled={!canAfford}
+                        className={canAfford ? 'btn-medieval-primary px-4 py-2 rounded-lg' : 'btn-medieval px-4 py-2 rounded-lg opacity-50 cursor-not-allowed'}
+                      >
+                        💰{formatNumber(cost)}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'trade' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>🏪 Торговцы</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {TRADERS.map(trader => {
+                const cooldown = traderCooldowns[trader.id] || 0;
+                const canAfford = character.gold >= trader.cost;
+                const isAvailable = cooldown === 0 && canAfford;
+                
+                return (
+                  <div key={trader.id} className="p-4 rounded-xl border-2" style={{ backgroundColor: '#2a1f0e', borderColor: isAvailable ? '#b8860b' : '#5c3d1e' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-4xl">{trader.icon}</span>
+                      <div>
+                        <div className="font-bold" style={{ color: '#e8dcc4' }}>{trader.name}</div>
+                        <div className="text-xs" style={{ color: '#8b7355' }}>{trader.service}</div>
+                      </div>
+                    </div>
+                    <div className="text-sm mb-3" style={{ color: '#8b7355' }}>{trader.description}</div>
+                    <button
+                      onClick={() => useTrader(trader.id)}
+                      disabled={!isAvailable}
+                      className={isAvailable ? 'btn-medieval-primary w-full px-4 py-2 rounded-lg' : 'btn-medieval w-full px-4 py-2 rounded-lg opacity-50 cursor-not-allowed'}
+                    >
+                      {cooldown > 0 ? `⏱️ ${cooldown}с` : `💰 ${formatNumber(trader.cost)}`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
