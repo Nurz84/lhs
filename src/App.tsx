@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS, TRADERS, SEASONS,
+  RARITIES, EQUIPMENT_SLOTS, MONSTERS, BOSSES, SKILLS, SETS, TRADERS, SEASONS, PASSIVE_UPGRADES,
   rollRarity, generateItemName, generateItemStats,
   getMonsterStats, getXpForLevel, formatNumber, getSkillCost,
   calculateItemPower, compareItems, generateSetItem, generateUniqueItem,
@@ -8,7 +8,7 @@ import {
   type Item, type Character
 } from './gameData';
 
-type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'trade';
+type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'trade' | 'passives';
 
 function App() {
   const [character, setCharacter] = useState<Character>({
@@ -25,6 +25,7 @@ function App() {
   const [inventory, setInventory] = useState<Item[]>([]);
   const [equipment, setEquipment] = useState<Record<string, Item | null>>({});
   const [skills, setSkills] = useState<Record<string, number>>({});
+  const [passives, setPassives] = useState<Record<string, number>>({});
   const [lastDrop, setLastDrop] = useState<Item | null>(null);
   const [battleLog, setBattleLog] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('battle');
@@ -48,6 +49,7 @@ function App() {
   const monsterIdxRef = useRef(monsterIdx);
   const equipmentRef = useRef(equipment);
   const skillsRef = useRef(skills);
+  const passivesRef = useRef(passives);
   const isBossRef = useRef(isBoss);
 
   useEffect(() => { characterRef.current = character; }, [character]);
@@ -58,6 +60,7 @@ function App() {
   useEffect(() => { monsterIdxRef.current = monsterIdx; }, [monsterIdx]);
   useEffect(() => { equipmentRef.current = equipment; }, [equipment]);
   useEffect(() => { skillsRef.current = skills; }, [skills]);
+  useEffect(() => { passivesRef.current = passives; }, [passives]);
   useEffect(() => { isBossRef.current = isBoss; }, [isBoss]);
 
   const getEquipmentStats = useCallback(() => {
@@ -90,9 +93,24 @@ function App() {
     return bonuses;
   }, []);
 
+  const getPassiveBonuses = useCallback(() => {
+    const bonuses = { atk: 0, def: 0, hp: 0, spd: 0, crit: 0, dodge: 0, lck: 0, xp: 0, gold: 0, loot: 0, regen: 0, thorns: 0 };
+    PASSIVE_UPGRADES.forEach(passive => {
+      const level = passivesRef.current[passive.id] || 0;
+      if (level > 0) {
+        const value = passive.effectPerLevel * level;
+        if (passive.effect in bonuses) {
+          bonuses[passive.effect as keyof typeof bonuses] += value;
+        }
+      }
+    });
+    return bonuses;
+  }, []);
+
   const getTotalStats = useCallback(() => {
     const eqStats = getEquipmentStats();
     const skillBonuses = getSkillBonuses();
+    const passiveBonuses = getPassiveBonuses();
     const setBonuses = getTotalSetBonus(equipmentRef.current);
     const char = characterRef.current;
     
@@ -110,19 +128,30 @@ function App() {
     const baseDodge = char.dodge + eqStats.DODGE + skillBonuses.dodge + setBonuses.DODGE + setBonuses.ALL;
     const baseLck = char.lck + eqStats.LCK + skillBonuses.lck + setBonuses.LCK + setBonuses.ALL + luckBoost;
     
+    // Apply passive percentage bonuses
+    const atkWithPassive = Math.floor(baseAtk * (1 + passiveBonuses.atk / 100));
+    const defWithPassive = Math.floor(baseDef * (1 + passiveBonuses.def / 100));
+    const hpWithPassive = Math.floor(baseHp * (1 + passiveBonuses.hp / 100));
+    const spdWithPassive = Math.floor(baseSpd * (1 + passiveBonuses.spd / 100));
+    const critWithPassive = Math.floor(baseCrit * (1 + passiveBonuses.crit / 100));
+    const dodgeWithPassive = Math.floor(baseDodge * (1 + passiveBonuses.dodge / 100));
+    const lckWithPassive = Math.floor(baseLck * (1 + passiveBonuses.lck / 100));
+    
     return {
-      atk: Math.floor(baseAtk * (1 + seasonMultiplier('ATK'))),
-      def: Math.floor(baseDef * (1 + seasonMultiplier('DEF'))),
-      maxHp: Math.floor(baseHp * (1 + seasonMultiplier('HP'))),
-      spd: Math.floor(baseSpd * (1 + seasonMultiplier('SPD'))),
-      crit: Math.floor(baseCrit * (1 + seasonMultiplier('CRIT'))),
-      dodge: Math.floor(baseDodge * (1 + seasonMultiplier('DODGE'))),
-      lck: Math.floor(baseLck * (1 + seasonMultiplier('LCK'))),
-      xpBonus: skillBonuses.xp,
-      goldBonus: skillBonuses.gold + (currentSeason.modifiers.find(m => m.stat === 'GOLD')?.value || 0),
-      lootBonus: skillBonuses.loot + (currentSeason.modifiers.find(m => m.stat === 'LOOT')?.value || 0),
+      atk: Math.floor(atkWithPassive * (1 + seasonMultiplier('ATK'))),
+      def: Math.floor(defWithPassive * (1 + seasonMultiplier('DEF'))),
+      maxHp: Math.floor(hpWithPassive * (1 + seasonMultiplier('HP'))),
+      spd: Math.floor(spdWithPassive * (1 + seasonMultiplier('SPD'))),
+      crit: Math.floor(critWithPassive * (1 + seasonMultiplier('CRIT'))),
+      dodge: Math.floor(dodgeWithPassive * (1 + seasonMultiplier('DODGE'))),
+      lck: Math.floor(lckWithPassive * (1 + seasonMultiplier('LCK'))),
+      xpBonus: skillBonuses.xp + passiveBonuses.xp,
+      goldBonus: skillBonuses.gold + passiveBonuses.gold + (currentSeason.modifiers.find(m => m.stat === 'GOLD')?.value || 0),
+      lootBonus: skillBonuses.loot + passiveBonuses.loot + (currentSeason.modifiers.find(m => m.stat === 'LOOT')?.value || 0),
+      regen: passiveBonuses.regen,
+      thorns: passiveBonuses.thorns,
     };
-  }, [getEquipmentStats, getSkillBonuses, currentSeason, luckBoost]);
+  }, [getEquipmentStats, getSkillBonuses, getPassiveBonuses, currentSeason, luckBoost]);
 
   const spawnMonster = useCallback(() => {
     const idx = monsterIdxRef.current;
@@ -310,9 +339,11 @@ function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       const totalStats = getTotalStats();
+      const regenBonus = totalStats.regen || 0;
+      const regenPercent = 0.05 + (regenBonus / 100);
       setCharacter(prev => ({
         ...prev,
-        hp: Math.min(totalStats.maxHp, prev.hp + Math.floor(totalStats.maxHp * 0.05)),
+        hp: Math.min(totalStats.maxHp, prev.hp + Math.floor(totalStats.maxHp * regenPercent)),
       }));
     }, 2000);
     return () => clearInterval(interval);
@@ -351,6 +382,17 @@ function App() {
     if (character.gold >= cost && character.skillPoints > 0) {
       setCharacter(prev => ({ ...prev, gold: prev.gold - cost, skillPoints: prev.skillPoints - 1 }));
       setSkills(prev => ({ ...prev, [skillId]: level + 1 }));
+    }
+  };
+
+  const buyPassive = (passiveId: string) => {
+    const passive = PASSIVE_UPGRADES.find(p => p.id === passiveId)!;
+    const level = passives[passiveId] || 0;
+    if (level >= passive.maxLevel) return;
+    const cost = Math.floor(passive.baseCost * Math.pow(passive.costMultiplier, level));
+    if (character.gold >= cost) {
+      setCharacter(prev => ({ ...prev, gold: prev.gold - cost }));
+      setPassives(prev => ({ ...prev, [passiveId]: level + 1 }));
     }
   };
 
@@ -598,12 +640,13 @@ function App() {
       </header>
 
       <nav className="border-b border-gray-800 bg-gray-900/30">
-        <div className="max-w-7xl mx-auto px-4 flex gap-1">
+        <div className="max-w-7xl mx-auto px-4 flex gap-1 flex-wrap">
           {([
             { id: 'battle' as Tab, label: '⚔️ Бой' },
             { id: 'character' as Tab, label: '👤 Персонаж' },
             { id: 'inventory' as Tab, label: '🎒 Инвентарь' },
             { id: 'skills' as Tab, label: '📖 Навыки' },
+            { id: 'passives' as Tab, label: '💎 Пассивки' },
             { id: 'trade' as Tab, label: '🏪 Торговля' },
           ]).map(tab => (
             <button
@@ -724,6 +767,12 @@ function App() {
                   <div className="flex justify-between"><span className="text-gray-500">🎯 CRIT</span><span className="text-orange-400 font-bold">{totalStats.crit}%</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">💨 DODGE</span><span className="text-cyan-400 font-bold">{totalStats.dodge}%</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">🍀 LCK</span><span className="text-purple-400 font-bold">{totalStats.lck}</span></div>
+                  {totalStats.regen > 0 && (
+                    <div className="flex justify-between"><span className="text-gray-500">❤️ Регенерация</span><span className="text-pink-400 font-bold">+{totalStats.regen}%</span></div>
+                  )}
+                  {totalStats.thorns > 0 && (
+                    <div className="flex justify-between"><span className="text-gray-500">🌵 Шипы</span><span className="text-green-400 font-bold">+{totalStats.thorns}%</span></div>
+                  )}
                 </div>
                 
                 {/* Set Bonuses */}
@@ -1088,6 +1137,60 @@ function App() {
                         className={`px-4 py-2 rounded-lg font-bold text-sm ${canLearn ? 'bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
                       >
                         {isMaxed ? 'MAX' : `💰${formatNumber(cost)}`}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'passives' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-200">Пассивные улучшения</h3>
+              <div className="text-sm text-yellow-400">💰 Золото: {formatNumber(character.gold)}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {PASSIVE_UPGRADES.map(passive => {
+                const level = passives[passive.id] || 0;
+                const cost = Math.floor(passive.baseCost * Math.pow(passive.costMultiplier, level));
+                const canAfford = character.gold >= cost;
+                const isMaxed = level >= passive.maxLevel;
+                
+                return (
+                  <div
+                    key={passive.id}
+                    className={`p-4 rounded-xl border transition-all ${
+                      isMaxed ? 'border-yellow-600 bg-yellow-900/10' :
+                      canAfford ? 'border-cyan-700 hover:border-cyan-500' : 'border-gray-800 opacity-60'
+                    }`}
+                    style={{ backgroundColor: isMaxed ? 'rgba(234,179,8,0.05)' : canAfford ? 'rgba(6,182,212,0.05)' : 'rgba(0,0,0,0.3)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{passive.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-200">{passive.name}</span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-cyan-400">
+                            {level}/{passive.maxLevel}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-400">{passive.description}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Текущий бонус: +{passive.effectPerLevel * level}% {passive.effect.toUpperCase()}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => buyPassive(passive.id)}
+                        disabled={!canAfford || isMaxed}
+                        className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                          isMaxed ? 'bg-yellow-600 text-white cursor-not-allowed' :
+                          canAfford ? 'bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {isMaxed ? 'МАКС' : `💰${formatNumber(cost)}`}
                       </button>
                     </div>
                   </div>

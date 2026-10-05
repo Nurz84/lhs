@@ -143,6 +143,33 @@ export interface Season {
   color: string;
 }
 
+export interface PassiveUpgrade {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  maxLevel: number;
+  baseCost: number;
+  costMultiplier: number;
+  effect: 'atk' | 'def' | 'hp' | 'spd' | 'crit' | 'dodge' | 'lck' | 'xp' | 'gold' | 'loot' | 'regen' | 'thorns';
+  effectPerLevel: number;
+}
+
+export const PASSIVE_UPGRADES: PassiveUpgrade[] = [
+  { id: 'sharp_blade', name: 'Острое Лезвие', icon: '🗡️', description: '+3% к атаке за уровень', maxLevel: 50, baseCost: 100, costMultiplier: 1.2, effect: 'atk', effectPerLevel: 3 },
+  { id: 'thick_skin', name: 'Толстая Кожа', icon: '🛡️', description: '+3% к защите за уровень', maxLevel: 50, baseCost: 100, costMultiplier: 1.2, effect: 'def', effectPerLevel: 3 },
+  { id: 'vitality_aura', name: 'Аура Жизни', icon: '💚', description: '+5% к максимальному HP за уровень', maxLevel: 50, baseCost: 150, costMultiplier: 1.25, effect: 'hp', effectPerLevel: 5 },
+  { id: 'swift_feet', name: 'Быстрые Ноги', icon: '👟', description: '+2% к скорости атаки за уровень', maxLevel: 30, baseCost: 200, costMultiplier: 1.3, effect: 'spd', effectPerLevel: 2 },
+  { id: 'eagle_eye', name: 'Орлиный Глаз', icon: '👁️', description: '+1% к шансу крита за уровень', maxLevel: 30, baseCost: 250, costMultiplier: 1.35, effect: 'crit', effectPerLevel: 1 },
+  { id: 'phantom_step', name: 'Шаг Призрака', icon: '💨', description: '+1% к уклонению за уровень', maxLevel: 30, baseCost: 250, costMultiplier: 1.35, effect: 'dodge', effectPerLevel: 1 },
+  { id: 'lucky_charm', name: 'Счастливый Талисман', icon: '🍀', description: '+2% к удаче за уровень', maxLevel: 30, baseCost: 300, costMultiplier: 1.4, effect: 'lck', effectPerLevel: 2 },
+  { id: 'scholars_insight', name: 'Прозрение Учёного', icon: '📚', description: '+3% к получаемому опыту за уровень', maxLevel: 20, baseCost: 500, costMultiplier: 1.5, effect: 'xp', effectPerLevel: 3 },
+  { id: 'golden_touch', name: 'Золотое Касание', icon: '💰', description: '+5% к получаемому золоту за уровень', maxLevel: 20, baseCost: 400, costMultiplier: 1.45, effect: 'gold', effectPerLevel: 5 },
+  { id: 'treasure_sense', name: 'Чутьё Находок', icon: '🎁', description: '+2% к шансу выпадения лута за уровень', maxLevel: 20, baseCost: 600, costMultiplier: 1.55, effect: 'loot', effectPerLevel: 2 },
+  { id: 'regeneration', name: 'Регенерация', icon: '❤️', description: '+1% к восстановлению HP за уровень', maxLevel: 20, baseCost: 350, costMultiplier: 1.4, effect: 'regen', effectPerLevel: 1 },
+  { id: 'thorns', name: 'Шипы', icon: '🌵', description: '+2% к отражаемому урону за уровень', maxLevel: 20, baseCost: 450, costMultiplier: 1.5, effect: 'thorns', effectPerLevel: 2 },
+];
+
 export const SEASONS: Season[] = [
   {
     id: 'lunatic',
