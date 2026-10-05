@@ -9,7 +9,7 @@ import {
 } from './gameData';
 import { YandexSDK } from './yandexSdk';
 
-type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'passives' | 'trade';
+type Tab = 'battle' | 'character' | 'inventory' | 'skills' | 'passives' | 'trade' | 'leaderboard';
 
 function App() {
   const [sdkReady, setSdkReady] = useState(false);
@@ -43,6 +43,10 @@ function App() {
   const [luckBoostExpiry, setLuckBoostExpiry] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [showRewardedAd, setShowRewardedAd] = useState<{ type: string; callback: () => void } | null>(null);
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  const [lastDailyReward, setLastDailyReward] = useState(0);
+  const [showDailyReward, setShowDailyReward] = useState(false);
 
   // Refs for game loop
   const characterRef = useRef(character);
@@ -503,17 +507,66 @@ function App() {
     return compareItems(currentItem, item);
   };
 
-  // Rewarded Ad функции
+  // Rewarded Ad функции с UI
   const requestRewardedAd = (type: string, callback: () => void) => {
-    setShowRewardedAd({ type, callback });
+    YandexSDK.showRewardedAd(
+      () => {
+        callback();
+        YandexSDK.trackEvent('ad_watched', { type });
+        setShowRewardModal(true);
+        setTimeout(() => setShowRewardModal(false), 2000);
+      },
+      () => setIsPaused(true),
+      () => setIsPaused(false)
+    );
   };
 
-  const handleRewardedAdComplete = () => {
-    if (showRewardedAd) {
-      showRewardedAd.callback();
-      setShowRewardedAd(null);
+  // Ежедневные награды
+  const claimDailyReward = (doubleReward: boolean = false) => {
+    const now = Date.now();
+    const hoursSinceLastReward = (now - lastDailyReward) / (1000 * 60 * 60);
+    
+    if (hoursSinceLastReward >= 24) {
+      const goldReward = 100 * character.level * (doubleReward ? 2 : 1);
+      const xpReward = 50 * character.level * (doubleReward ? 2 : 1);
+      
+      setCharacter(prev => ({
+        ...prev,
+        gold: prev.gold + goldReward,
+        xp: prev.xp + xpReward
+      }));
+      
+      setLastDailyReward(now);
+      YandexSDK.trackEvent('daily_reward_claimed', { gold: goldReward, xp: xpReward, doubled: doubleReward });
+      setBattleLog(prev => [...prev.slice(-9), `🎁 Ежедневная награда: +${goldReward} 💰, +${xpReward} XP${doubleReward ? ' (x2!)' : ''}`]);
+      
+      if (doubleReward) {
+        requestRewardedAd('double_daily', () => {
+          setCharacter(prev => ({
+            ...prev,
+            gold: prev.gold + goldReward,
+            xp: prev.xp + xpReward
+          }));
+        });
+      }
     }
   };
+
+  // Загрузка лидерборда
+  const loadLeaderboard = async (boardId: string = 'main') => {
+    const data = await YandexSDK.getTopPlayers(boardId, 10);
+    setLeaderboardData(data);
+  };
+
+  // Проверка ежедневной награды при старте
+  useEffect(() => {
+    const hoursSinceLastReward = (Date.now() - lastDailyReward) / (1000 * 60 * 60);
+    if (hoursSinceLastReward >= 24) {
+      setShowDailyReward(true);
+    }
+  }, []);
+
+
 
   // Trader functions с rewarded ads
   const useTrader = (traderId: string) => {
@@ -696,6 +749,7 @@ function App() {
             { id: 'skills' as Tab, label: '📖 Навыки' },
             { id: 'passives' as Tab, label: '💎 Пассивки' },
             { id: 'trade' as Tab, label: '🏪 Торговля' },
+            { id: 'leaderboard' as Tab, label: '🏆 Рейтинг' },
           ]).map(tab => (
             <button
               key={tab.id}
@@ -990,6 +1044,81 @@ function App() {
         {activeTab === 'trade' && (
           <div className="space-y-4">
             <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>🏪 Торговцы</h3>
+            
+            {/* Rewarded награды */}
+            <div className="rounded-xl border-2 p-4" style={{ backgroundColor: '#2a1f0e', borderColor: '#b8860b' }}>
+              <h4 className="text-md font-bold mb-3" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>📺 Награды за просмотр рекламы</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    requestRewardedAd('double_gold', () => {
+                      const bonus = Math.floor(character.gold * 0.5);
+                      setCharacter(prev => ({ ...prev, gold: prev.gold + bonus }));
+                      setBattleLog(prev => [...prev.slice(-9), `💰 +${bonus} золота (x1.5)!`]);
+                    });
+                  }}
+                  className="btn-medieval-primary p-3 rounded-lg text-left"
+                >
+                  <div className="font-bold">💰 Удвоить золото</div>
+                  <div className="text-xs mt-1" style={{ color: '#e8dcc4' }}>Получите +50% к текущему золоту</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    requestRewardedAd('luck_boost', () => {
+                      setLuckBoost(50);
+                      setLuckBoostExpiry(Date.now() + 1800000); // 30 минут
+                      setBattleLog(prev => [...prev.slice(-9), `🍀 +50% удачи на 30 минут!`]);
+                    });
+                  }}
+                  className="btn-medieval-primary p-3 rounded-lg text-left"
+                >
+                  <div className="font-bold">🍀 Удача +50%</div>
+                  <div className="text-xs mt-1" style={{ color: '#e8dcc4' }}>Бонус к удаче на 30 минут</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    requestRewardedAd('free_enchant', () => {
+                      if (inventory.length > 0) {
+                        const randomIdx = Math.floor(Math.random() * inventory.length);
+                        const item = inventory[randomIdx];
+                        const upgradedItem = {
+                          ...item,
+                          level: item.level + 1,
+                          stats: item.stats.map(s => ({ ...s, value: Math.floor(s.value * 1.2) })),
+                          value: Math.floor(item.value * 1.5),
+                        };
+                        setInventory(prev => {
+                          const newInv = [...prev];
+                          newInv[randomIdx] = upgradedItem;
+                          return newInv;
+                        });
+                        setBattleLog(prev => [...prev.slice(-9), `✨ Бесплатное улучшение: ${item.name}!`]);
+                      }
+                    });
+                  }}
+                  className="btn-medieval-primary p-3 rounded-lg text-left"
+                >
+                  <div className="font-bold">✨ Улучшить предмет</div>
+                  <div className="text-xs mt-1" style={{ color: '#e8dcc4' }}>Бесплатное улучшение случайного предмета</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    requestRewardedAd('xp_boost', () => {
+                      const bonus = character.xpToNext * 0.3;
+                      setCharacter(prev => ({ ...prev, xp: prev.xp + bonus }));
+                      setBattleLog(prev => [...prev.slice(-9), `📚 +30% опыта до следующего уровня!`]);
+                    });
+                  }}
+                  className="btn-medieval-primary p-3 rounded-lg text-left"
+                >
+                  <div className="font-bold">📚 +30% опыта</div>
+                  <div className="text-xs mt-1" style={{ color: '#e8dcc4' }}>Получите 30% опыта до следующего уровня</div>
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {TRADERS.map(trader => {
                 const cooldown = traderCooldowns[trader.id] || 0;
@@ -1016,6 +1145,122 @@ function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'leaderboard' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold" style={{ color: '#d4a843', fontFamily: "'Cinzel', serif" }}>🏆 Таблица лидеров</h3>
+              <button
+                onClick={() => loadLeaderboard('main')}
+                className="btn-medieval-primary px-4 py-2 rounded-lg"
+              >
+                🔄 Обновить
+              </button>
+            </div>
+            
+            <div className="rounded-xl border-2 p-6" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e' }}>
+              <h4 className="text-md font-bold mb-4" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>👑 Лучший уровень</h4>
+              {leaderboardData.length > 0 ? (
+                <div className="space-y-2">
+                  {leaderboardData.map((entry, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: '#1a1208' }}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl font-bold" style={{ color: i === 0 ? '#f0c75e' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#8b7355' }}>
+                          #{i + 1}
+                        </span>
+                        <span style={{ color: '#e8dcc4' }}>{entry.player?.publicProfile?.name || 'Аноним'}</span>
+                      </div>
+                      <span className="font-bold" style={{ color: '#d4a843' }}>Ур. {entry.score}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8" style={{ color: '#8b7355' }}>
+                  <div className="text-4xl mb-2">🏆</div>
+                  <p>Загрузите таблицу лидеров</p>
+                  <p className="text-xs mt-2">Ваш рекорд: Уровень {character.level}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border-2 p-6" style={{ backgroundColor: '#2a1f0e', borderColor: '#5c3d1e' }}>
+              <h4 className="text-md font-bold mb-4" style={{ color: '#b8860b', fontFamily: "'Cinzel', serif" }}>🗺️ Максимальная зона</h4>
+              <div className="text-center py-4" style={{ color: '#8b7355' }}>
+                <p>Ваш рекорд: Зона {zone}</p>
+                <button
+                  onClick={() => loadLeaderboard('zone')}
+                  className="btn-medieval mt-3 px-4 py-2 rounded-lg"
+                >
+                  Загрузить рейтинг зон
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Модальное окно ежедневной награды */}
+        {showDailyReward && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
+            <div className="rounded-xl border-2 p-6 max-w-md w-full" style={{ backgroundColor: '#2a1f0e', borderColor: '#b8860b', boxShadow: '0 0 40px rgba(184,134,11,0.4)' }}>
+              <div className="text-center mb-4">
+                <div className="text-5xl mb-2">🎁</div>
+                <h3 className="text-xl font-bold" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>Ежедневная награда!</h3>
+                <p className="text-sm mt-2" style={{ color: '#8b7355' }}>Заберите свою награду за вход</p>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    claimDailyReward(false);
+                    setShowDailyReward(false);
+                  }}
+                  className="btn-medieval-primary w-full py-3 rounded-lg"
+                >
+                  🎁 Забрать награду
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowDailyReward(false);
+                    requestRewardedAd('double_daily', () => {
+                      const goldReward = 100 * character.level * 2;
+                      const xpReward = 50 * character.level * 2;
+                      setCharacter(prev => ({
+                        ...prev,
+                        gold: prev.gold + goldReward,
+                        xp: prev.xp + xpReward
+                      }));
+                      setBattleLog(prev => [...prev.slice(-9), `🎁 Двойная награда: +${goldReward} 💰, +${xpReward} XP!`]);
+                    });
+                  }}
+                  className="btn-medieval w-full py-3 rounded-lg"
+                >
+                  📺 Смотреть рекламу и удвоить награду
+                </button>
+                
+                <button
+                  onClick={() => setShowDailyReward(false)}
+                  className="w-full py-2 text-sm"
+                  style={{ color: '#8b7355' }}
+                >
+                  Позже
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Модальное окно получения награды */}
+        {showRewardModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="rounded-xl border-2 p-6 animate-bounce" style={{ backgroundColor: '#2a1f0e', borderColor: '#b8860b', boxShadow: '0 0 40px rgba(184,134,11,0.6)' }}>
+              <div className="text-center">
+                <div className="text-5xl mb-2">🎉</div>
+                <h3 className="text-xl font-bold" style={{ color: '#f0c75e', fontFamily: "'Cinzel', serif" }}>Награда получена!</h3>
+              </div>
             </div>
           </div>
         )}
